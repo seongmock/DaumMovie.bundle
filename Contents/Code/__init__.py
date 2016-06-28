@@ -50,7 +50,7 @@ def searchDaumMovie(cate, results, media, lang):
 def updateDaumMovie(cate, metadata):
   # (1) from detail page
   poster_url = None
-  
+
   if cate == 'tv':
     page = HTTP.Request( DAUM_TV_DETAIL % metadata.id ).content
     match = Regex('(.*programInfo.*),"relatedInfoUrls').search(page)
@@ -110,7 +110,7 @@ def updateDaumMovie(cate, metadata):
     elif cast['castcrewCastName'] in [u'주연', u'조연', u'출연', u'진행']:
       role = metadata.roles.new()
       role.role = cast['castcrewTitleKo']
-      role.actor = item['nameKo'] if item['nameKo'] else item['nameEn']
+      role.name = item['nameKo'] if item['nameKo'] else item['nameEn']
       metadata.roles.add(role)
     # else:
     #   Log.Debug("unknown role: castcrewCastName=%s," % cast['castcrewCastName'])
@@ -223,7 +223,7 @@ class DaumMovieTvAgent(Agent.TV_Shows):
   languages = [Locale.Language.Korean]
   accepts_from = ['com.plexapp.agents.localmedia']
 
-  def search(self, results, media, lang, manual=False):   
+  def search(self, results, media, lang, manual=False):
     return searchDaumMovie('tv', results, media, lang)
 
   def update(self, metadata, media, lang):
