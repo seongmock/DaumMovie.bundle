@@ -97,31 +97,77 @@ def updateDaumMovie(cate, metadata):
 
   # (2) cast crew
   directors = list()
+  producers = list()
   writers = list()
-  metadata.roles.clear()
+  roles = list()
+
   url_tmpl = DAUM_TV_CAST if cate == 'tv' else DAUM_MOVIE_CAST
   data = JSON.ObjectFromURL(url=url_tmpl % metadata.id)
   for item in data['data']:
     cast = item['castcrew']
     if cast['castcrewCastName'] in [u'감독', u'연출']:
-      directors.append(item['nameKo'] if item['nameKo'] else item['nameEn'])
-    elif cast['castcrewCastName'] == u'극본':
-      writers.append(item['nameKo'] if item['nameKo'] else item['nameEn'])
+      director = dict()
+      director['name'] = item['nameKo'] if item['nameKo'] else item['nameEn']
+      if item['photo']['fullname']:
+        director['photo'] = item['photo']['fullname']
+      directors.append(director)
+    elif cast['castcrewCastName'] == u'제작':
+      producer = dict()
+      producer['name'] = item['nameKo'] if item['nameKo'] else item['nameEn']
+      if item['photo']['fullname']:
+        producer['photo'] = item['photo']['fullname']
+      producers.append(producer)
+    elif cast['castcrewCastName'] in [u'극본', u'각본']:
+      writer = dict()
+      writer['name'] = item['nameKo'] if item['nameKo'] else item['nameEn']
+      if item['photo']['fullname']:
+        writer['photo'] = item['photo']['fullname']
+      writers.append(writer)
     elif cast['castcrewCastName'] in [u'주연', u'조연', u'출연', u'진행']:
-      role = metadata.roles.new()
-      role.role = cast['castcrewTitleKo']
-      role.name = item['nameKo'] if item['nameKo'] else item['nameEn']
-      metadata.roles.add(role)
+      role = dict()
+      role['role'] = cast['castcrewTitleKo']
+      role['name'] = item['nameKo'] if item['nameKo'] else item['nameEn']
+      if item['photo']['fullname']:
+        role['photo'] = item['photo']['fullname']
+      roles.append(role)
     # else:
-    #   Log.Debug("unknown role: castcrewCastName=%s," % cast['castcrewCastName'])
+    #   Log.Debug("unknown role: castcrewCastName=%s" % cast['castcrewCastName'])
 
   if cate == 'movie':
-    metadata.directors.clear()
-    metadata.writers.clear()
-    for name in directors:
-      metadata.directors.add(name)
-    for name in writers:
-      metadata.writers.add(name)
+    if directors:
+      metadata.directors.clear()
+      for director in directors:
+        meta_director = metadata.directors.new()
+        if director['name']:
+          meta_director.name = director['name']
+        if director['photo']:
+          meta_director.photo = director['photo']
+    if producers:
+      metadata.producers.clear()
+      for producer in producers:
+        meta_producer = metadata.producers.new()
+        if producer['name']:
+          meta_producer.name = producer['name']
+        if producer['photo']:
+          meta_producer.photo = producer['photo']
+    if writers:
+      metadata.writers.clear()
+      for writer in writers:
+        meta_writer = metadata.writers.new()
+        if writer['name']:
+          meta_writer.name = writer['name']
+        if writer['photo']:
+          meta_writer.photo = writer['photo']
+    if roles:
+      metadata.roles.clear()
+      for role in roles:
+        meta_role = metadata.roles.new()
+        if role['role']:
+          meta_role.role = role['role']
+        if role['name']:
+          meta_role.name = role['name']
+        if role['photo']:
+          meta_role.photo = role['photo']
 
   # (3) from photo page
   url_tmpl = DAUM_TV_PHOTO if cate == 'tv' else DAUM_MOVIE_PHOTO
@@ -177,13 +223,22 @@ def updateDaumMovie(cate, metadata):
           episode.originally_available_at = Datetime.ParseDate(item['channels'][0]['broadcastDate'], '%Y%m%d').date()
         try: episode.rating = float(item['rate'])
         except: pass
-        episode.directors.clear()
-        episode.writers.clear()
-        for name in directors:
-          episode.directors.add(name)
-        for name in writers:
-          episode.writers.add(name)
-        #episode.thumbs[thumb_url] = Proxy.Preview(thumb_data)
+        if directors:
+          episode.directors.clear()
+          for director in directors:
+            meta_director = episode.directors.new()
+            if director['name']:
+              meta_director.name = director['name']
+            if director['photo']:
+              meta_director.photo = director['photo']
+        if writers:
+          episode.writers.clear()
+          for writer in writers:
+            meta_writer = episode.writers.new()
+            if writer['name']:
+              meta_writer.name = writer['name']
+            if writer['photo']:
+              meta_writer.photo = writer['photo']
 
     # (5) fill missing info
     # if Prefs['override_tv_id'] != 'None':
