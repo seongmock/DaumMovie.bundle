@@ -138,35 +138,35 @@ def updateDaumMovie(cate, metadata):
       metadata.directors.clear()
       for director in directors:
         meta_director = metadata.directors.new()
-        if director['name']:
+        if 'name' in director:
           meta_director.name = director['name']
-        if director['photo']:
+        if 'photo' in director:
           meta_director.photo = director['photo']
     if producers:
       metadata.producers.clear()
       for producer in producers:
         meta_producer = metadata.producers.new()
-        if producer['name']:
+        if 'name' in producer:
           meta_producer.name = producer['name']
-        if producer['photo']:
+        if 'photo' in producer:
           meta_producer.photo = producer['photo']
     if writers:
       metadata.writers.clear()
       for writer in writers:
         meta_writer = metadata.writers.new()
-        if writer['name']:
+        if 'name' in writer:
           meta_writer.name = writer['name']
-        if writer['photo']:
+        if 'photo' in writer:
           meta_writer.photo = writer['photo']
     if roles:
       metadata.roles.clear()
       for role in roles:
         meta_role = metadata.roles.new()
-        if role['role']:
+        if 'role' in role:
           meta_role.role = role['role']
-        if role['name']:
+        if 'name' in role:
           meta_role.name = role['name']
-        if role['photo']:
+        if 'photo' in role:
           meta_role.photo = role['photo']
 
   # (3) from photo page
@@ -227,17 +227,17 @@ def updateDaumMovie(cate, metadata):
           episode.directors.clear()
           for director in directors:
             meta_director = episode.directors.new()
-            if director['name']:
+            if 'name' in director:
               meta_director.name = director['name']
-            if director['photo']:
+            if 'photo' in director:
               meta_director.photo = director['photo']
         if writers:
           episode.writers.clear()
           for writer in writers:
             meta_writer = episode.writers.new()
-            if writer['name']:
+            if 'name' in writer:
               meta_writer.name = writer['name']
-            if writer['photo']:
+            if 'photo' in writer:
               meta_writer.photo = writer['photo']
 
     # (5) fill missing info
