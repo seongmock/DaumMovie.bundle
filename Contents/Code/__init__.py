@@ -9,7 +9,8 @@ DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?mov
 DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?pageNo=1&pageSize=100&movieId=%s"
 DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
-DAUM_TV_DETAIL    = "http://movie.daum.net/tv/main.json?tvProgramId=%s"
+DAUM_TV_DETAIL    = "http://movie.daum.net/tv/main?tvProgramId=%s"
+#DAUM_TV_DETAIL    = "http://movie.daum.net/data/movie/tv/detail.json?tvProgramId=%s"
 DAUM_TV_CAST      = "http://movie.daum.net/data/movie/tv/cast_crew.json?pageNo=1&pageSize=100&tvProgramId=%s"
 DAUM_TV_PHOTO     = "http://movie.daum.net/data/movie/photo/tv/list.json?pageNo=1&pageSize=100&id=%s"
 DAUM_TV_EPISODE   = "http://movie.daum.net/tv/episode?tvProgramId=%s"
@@ -52,26 +53,38 @@ def updateDaumMovie(cate, metadata):
   poster_url = None
 
   if cate == 'tv':
-    page = HTTP.Request( DAUM_TV_DETAIL % metadata.id ).content
-    match = Regex('(.*programInfo.*),"relatedInfoUrls').search(page)
-    if match:
-      data = JSON.ObjectFromString(match.group(1) + '}}')
-      # info = data['programInfo']
-      programInfo = data['programInfo']
-      episodeList = data['episodeList']
-      metadata.title = programInfo['name']
-      metadata.original_title = programInfo['nameEn']
+    # data = JSON.ObjectFromURL(url=DAUM_TV_DETAIL % metadata.id)
+    # info = data['data']
+    # if info:
+    #   metadata.title = info['titleKo']
+    #   metadata.original_title = info['titleEn']
+    #   metadata.genres.clear()
+    #   try: metadata.rating = float(info['tvProgramPoint']['pointAvg'])
+    #   except: pass
+    #   metadata.genres.add(info['categoryHigh']['codeName'])
+    #   metadata.studio = info['channel']['titleKo'] if info['channel'] else ''
+    #   metadata.duration = 0
+    #   try: metadata.originally_available_at = Datetime.ParseDate(info['startDate']).date()
+    #   except: pass
+    #   metadata.summary = String.DecodeHTMLEntities(String.StripTags(info['introduce']).strip())
+    #   poster_url = info['photo']['fullname']
+    # else:
+    try:
+      html = HTML.ElementFromURL(DAUM_TV_DETAIL % metadata.id)
+      metadata.title = html.xpath('//div[@class="subject_movie"]/strong')[0].text
+      metadata.original_title = ''
+      metadata.rating = float(html.xpath('//div[@class="subject_movie"]/div/em')[0].text)
       metadata.genres.clear()
-      try: metadata.rating = float(data['userTvProgramRatingAverage']['avg_point'])
-      except: pass
-      metadata.genres.add(programInfo['genre'])
-      metadata.studio = episodeList[0]['channels'][0]['name']
-      metadata.duration = 0
-      try: metadata.originally_available_at = Datetime.ParseDate(episodeList[0]['channels'][0]['startDate']).date()
-      except: pass
-      #metadata.summary = String.DecodeHTMLEntities(String.StripTags(programInfo['introduceDescription']).strip())
-      metadata.summary = programInfo['introduceDescription'].replace('\r\n', '\n').strip()
-      poster_url = programInfo['mainImageUrl']
+      metadata.genres.add(html.xpath('//dl[@class="list_movie"]/dd[2]')[0].text)
+      metadata.studio = html.xpath('//dl[@class="list_movie"]/dd[1]/em')[0].text
+      match = Regex('(\d{8}\.\d{2}\.\d{2})~(\d{4}\.\d{2}\.\d{2})?').search(html.xpath('//dl[@class="list_movie"]/dd[4]')[0].text)
+      if match:
+        metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
+      metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath('//p[@class="desc_movie"]')[0].text).strip())
+      poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
+    except Exception, e:
+      Log(repr(e))
+      pass
   else:
     data = JSON.ObjectFromURL(url=DAUM_MOVIE_DETAIL % metadata.id)
     info = data['data']
