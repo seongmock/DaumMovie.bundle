@@ -3,16 +3,16 @@
 
 import urllib, unicodedata
 
-DAUM_MOVIE_SRCH   = "http://m.movie.daum.net/data/movie/search/v2/%s.json?size=20&start=1&searchText=%s"
+DAUM_MOVIE_SRCH   = "http://movie.daum.net/data/movie/search/v2/%s.json?size=20&start=1&searchText=%s"
 
-DAUM_MOVIE_DETAIL = "http://m.movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
-DAUM_MOVIE_CAST   = "http://m.movie.daum.net/data/movie/movie_info/cast_crew.json?pageNo=1&pageSize=100&movieId=%s"
-DAUM_MOVIE_PHOTO  = "http://m.movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
+DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
+DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?pageNo=1&pageSize=100&movieId=%s"
+DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
-DAUM_TV_DETAIL    = "http://m.movie.daum.net/tv/main.json?tvProgramId=%s"
-DAUM_TV_CAST      = "http://m.movie.daum.net/data/movie/tv/cast_crew.json?pageNo=1&pageSize=100&tvProgramId=%s"
-DAUM_TV_PHOTO     = "http://m.movie.daum.net/data/movie/photo/tv/list.json?pageNo=1&pageSize=100&id=%s"
-DAUM_TV_EPISODE   = "http://m.movie.daum.net/tv/episode?tvProgramId=%s"
+DAUM_TV_DETAIL    = "http://movie.daum.net/tv/main.json?tvProgramId=%s"
+DAUM_TV_CAST      = "http://movie.daum.net/data/movie/tv/cast_crew.json?pageNo=1&pageSize=100&tvProgramId=%s"
+DAUM_TV_PHOTO     = "http://movie.daum.net/data/movie/photo/tv/list.json?pageNo=1&pageSize=100&id=%s"
+DAUM_TV_EPISODE   = "http://movie.daum.net/tv/episode?tvProgramId=%s"
 
 IMDB_TITLE_SRCH   = "http://www.google.com/search?q=site:imdb.com+%s"
 TVDB_TITLE_SRCH   = "http://thetvdb.com/api/GetSeries.php?seriesname=%s"
