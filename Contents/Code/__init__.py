@@ -80,10 +80,10 @@ def updateDaumMovie(cate, metadata):
       match = Regex('(\d{8}\.\d{2}\.\d{2})~(\d{4}\.\d{2}\.\d{2})?').search(html.xpath('//dl[@class="list_movie"]/dd[4]')[0].text)
       if match:
         metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
-      metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath('//p[@class="desc_movie"]')[0].text).strip())
+      metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath('//div[@class="desc_movie"]')[0].text).strip())
       poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
     except Exception, e:
-      Log(repr(e))
+      Log.Debug(repr(e))
       pass
   else:
     data = JSON.ObjectFromURL(url=DAUM_MOVIE_DETAIL % metadata.id)
