@@ -5,7 +5,8 @@ import urllib, unicodedata
 
 DAUM_MOVIE_SRCH   = "http://movie.daum.net/data/movie/search/v2/%s.json?size=20&start=1&searchText=%s"
 
-DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
+DAUM_MOVIE_DETAIL = "http://movie.daum.net/moviedb/main?movieId=%s"
+# DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
 DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?pageNo=1&pageSize=100&movieId=%s"
 DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
@@ -69,27 +70,55 @@ def updateDaumMovie(cate, metadata):
       Log.Debug(repr(e))
       pass
   else:
-    data = JSON.ObjectFromURL(url=DAUM_MOVIE_DETAIL % metadata.id)
-    info = data['data']
-    metadata.title = info['titleKo']
-    metadata.original_title = info['titleEn']
-    metadata.genres.clear()
-    metadata.year = int(info['prodYear'])
-    try: metadata.rating = float(info['moviePoint']['inspectPointAvg'])
-    except: pass
-    for item in info['genres']:
-      metadata.genres.add(item['genreName'])
-    try: metadata.duration = int(info['showtime'])*60
-    except: pass
-    try: metadata.originally_available_at = Datetime.ParseDate(info['releaseDate']).date()
-    except: pass
-    metadata.summary = String.DecodeHTMLEntities(String.StripTags(info['plot']).strip())
-
-    metadata.countries.clear()
-    for item in info['countries']:
-      metadata.countries.add(item['countryKo'])
-
-    poster_url = info['photo']['fullname']
+    try:
+      html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % metadata.id)
+      title = html.xpath('//div[@class="subject_movie"]/strong')[0].text
+      match = Regex('(.*?) \((\d{4})\)').search(title)
+      metadata.title = match.group(1)
+      metadata.year = int(match.group(2))
+      metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
+      metadata.rating = float(html.xpath('//div[@class="subject_movie"]/div/em')[0].text)
+      metadata.genres.clear()
+      for genre in html.xpath('//dl[@class="list_movie"]/dd[1]')[0].text.split('/'):
+          metadata.genres.add(genre)
+      match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*개봉').search(html.xpath('//dl[@class="list_movie"]/dd[2]')[0].text)
+      if match:
+        metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
+      match = Regex(u'(\d+)분, ((\d+)세이상관람가)?').search(html.xpath('//dl[@class="list_movie"]/dd[3]')[0].text)
+      if match:
+        metadata.duration = int(match.group(1))
+        if match.group(3):
+          metadata.content_rating = match.group(3)
+          # metadata.content_rating = 'kr/%s' % match.group(3)
+      metadata.countries.clear()
+      for country in html.xpath('//dl[@class="list_movie"]/dd[4]')[0].text.split(','):
+          metadata.countries.add(country.strip())
+      metadata.summary = '\n'.join(txt.strip() for txt in html.xpath('//div[@class="desc_movie"]/p//text()'))
+      poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
+    except Exception, e:
+      Log.Debug(repr(e))
+      pass
+    # data = JSON.ObjectFromURL(url=DAUM_MOVIE_DETAIL % metadata.id)
+    # info = data['data']
+    # metadata.title = info['titleKo']
+    # metadata.original_title = info['titleEn']
+    # metadata.genres.clear()
+    # metadata.year = int(info['prodYear'])
+    # try: metadata.rating = float(info['moviePoint']['inspectPointAvg'])
+    # except: pass
+    # for item in info['genres']:
+    #   metadata.genres.add(item['genreName'])
+    # try: metadata.duration = int(info['showtime'])*60
+    # except: pass
+    # try: metadata.originally_available_at = Datetime.ParseDate(info['releaseDate']).date()
+    # except: pass
+    # metadata.summary = String.DecodeHTMLEntities(String.StripTags(info['plot']).strip())
+    #
+    # metadata.countries.clear()
+    # for item in info['countries']:
+    #   metadata.countries.add(item['countryKo'])
+    #
+    # poster_url = info['photo']['fullname']
 
   # (2) cast crew
   directors = list()
