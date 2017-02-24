@@ -79,19 +79,20 @@ def updateDaumMovie(cate, metadata):
       metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
       metadata.rating = float(html.xpath('//div[@class="subject_movie"]/div/em')[0].text)
       metadata.genres.clear()
-      for genre in html.xpath('//dl[@class="list_movie"]/dd[1]')[0].text.split('/'):
+      dd = html.xpath('//dl[contains(@class, "list_movie")]/dd')
+      for genre in dd[0].text.split('/'):
           metadata.genres.add(genre)
-      match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*개봉').search(html.xpath('//dl[@class="list_movie"]/dd[2]')[0].text)
+      match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*개봉').search(dd[2].text)
       if match:
         metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
-      match = Regex(u'(\d+)분, ((\d+)세이상관람가)?').search(html.xpath('//dl[@class="list_movie"]/dd[3]')[0].text)
+      match = Regex(u'(\d+)분, ((\d+)세이상관람가)?').search(dd[3].text)
       if match:
         metadata.duration = int(match.group(1))
         if match.group(3):
           metadata.content_rating = match.group(3)
           # metadata.content_rating = 'kr/%s' % match.group(3)
       metadata.countries.clear()
-      for country in html.xpath('//dl[@class="list_movie"]/dd[4]')[0].text.split(','):
+      for country in dd[1].text.split(','):
           metadata.countries.add(country.strip())
       metadata.summary = '\n'.join(txt.strip() for txt in html.xpath('//div[@class="desc_movie"]/p//text()'))
       poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
