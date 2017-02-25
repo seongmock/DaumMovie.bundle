@@ -78,24 +78,32 @@ def updateDaumMovie(cate, metadata):
       metadata.year = int(match.group(2))
       metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
       metadata.rating = float(html.xpath('//div[@class="subject_movie"]/div/em')[0].text)
+      # 장르
       metadata.genres.clear()
       dds = html.xpath('//dl[contains(@class, "list_movie")]/dd')
       for genre in dds.pop(0).text.split('/'):
           metadata.genres.add(genre)
+      # 나라
       metadata.countries.clear()
       for country in dds.pop(0).text.split(','):
           metadata.countries.add(country.strip())
+      # 개봉일 (optional)
       match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*개봉').search(dds[0].text)
       if match:
         metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
         dds.pop(0)
-      match = Regex(u'(\d+)분, ((\d+)세이상관람가)?').search(dds.pop(0).text)
+      # 재개봉 (optional)
+      match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*\(재개봉\)').search(dds[0].text)
+      if match:
+        dds.pop(0)
+      # 상영시간, 등급 (optional)
+      match = Regex(u'(\d+)분(?:, (.*?)\s*$)?').search(dds.pop(0).text)
       if match:
         metadata.duration = int(match.group(1))
-        if match.group(3):
-          metadata.content_rating = match.group(3)
+        if match.group(2):
+          metadata.content_rating = match.group(2)
           # metadata.content_rating = 'kr/%s' % match.group(3)
-      # Log.Debug('genre=%s, country=%s' %(list(metadata.genres), ','.join(c for c in metadata.countries)))
+      # Log.Debug('genre=%s, country=%s' %(','.join(g for g in metadata.genres), ','.join(c for c in metadata.countries)))
       # Log.Debug('oaa=%s, duration=%s, content_rating=%s' %(metadata.originally_available_at, metadata.duration, metadata.content_rating))
       metadata.summary = '\n'.join(txt.strip() for txt in html.xpath('//div[@class="desc_movie"]/p//text()'))
       poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
