@@ -24,6 +24,33 @@ RE_TV_ID          =  Regex("tvProgramId=(\d+)")
 RE_PHOTO_SIZE     =  Regex("/C\d+x\d+/")
 RE_IMDB_ID        =  Regex("/(tt\d+)/")
 
+DAUM_CR_TO_MPAA_CR = {
+    u'전체관람가': {
+        'KMRB': 'kr/A',
+        'MPAA': 'G'
+    },
+    u'12세이상관람가': {
+        'KMRB': 'kr/12',
+        'MPAA': 'PG'
+    },
+    u'15세이상관람가': {
+        'KMRB': 'kr/15',
+        'MPAA': 'PG-13'
+    },
+    u'청소년관람불가': {
+        'KMRB': 'kr/R',
+        'MPAA': 'R'
+    },
+    u'제한상영가': {     # 어느 여름날 밤에 (2016)
+        'KMRB': 'kr/X',
+        'MPAA': 'NC-17'
+    },
+    u'미국 R 등급': {   # 나인 하프 위크 (1986)
+        'KMRB': 'kr/R',
+        'MPAA': 'R'
+    }
+}
+
 def Start():
   HTTP.CacheTime = CACHE_1HOUR * 12
   HTTP.Headers['Accept'] = 'text/html, application/json'
@@ -100,9 +127,12 @@ def updateDaumMovie(cate, metadata):
       match = Regex(u'(\d+)분(?:, (.*?)\s*$)?').search(dds.pop(0).text)
       if match:
         metadata.duration = int(match.group(1))
-        if match.group(2):
-          metadata.content_rating = match.group(2)
-          # metadata.content_rating = 'kr/%s' % match.group(3)
+        cr = match.group(2)
+        if cr:
+          if cr in DAUM_CR_TO_MPAA_CR:
+            metadata.content_rating = DAUM_CR_TO_MPAA_CR[cr]['MPAA' if Prefs['use_mpaa'] else 'KMRB']
+          else:
+            metadata.content_rating = 'kr/' + cr
       # Log.Debug('genre=%s, country=%s' %(','.join(g for g in metadata.genres), ','.join(c for c in metadata.countries)))
       # Log.Debug('oaa=%s, duration=%s, content_rating=%s' %(metadata.originally_available_at, metadata.duration, metadata.content_rating))
       metadata.summary = '\n'.join(txt.strip() for txt in html.xpath('//div[@class="desc_movie"]/p//text()'))
