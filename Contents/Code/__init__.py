@@ -24,6 +24,8 @@ RE_TV_ID          =  Regex("tvProgramId=(\d+)")
 RE_PHOTO_SIZE     =  Regex("/C\d+x\d+/")
 RE_IMDB_ID        =  Regex("/(tt\d+)/")
 
+JSON_MAX_SIZE     = 10 * 1024 * 1024
+
 DAUM_CR_TO_MPAA_CR = {
     u'전체관람가': {
         'KMRB': 'kr/A',
@@ -301,7 +303,7 @@ def updateDaumMovie(cate, metadata):
     page = HTTP.Request(DAUM_TV_EPISODE % metadata.id).content
     match = Regex('MoreView\.init\(\d+, (.*?)\);', Regex.DOTALL).search(page)
     if match:
-      data = JSON.ObjectFromString(match.group(1))
+      data = JSON.ObjectFromString(match.group(1), max_size = JSON_MAX_SIZE)
       for item in data:
         episode_num = item['sequence']
         episode = metadata.seasons['1'].episodes[episode_num]
