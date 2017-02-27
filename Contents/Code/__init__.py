@@ -305,8 +305,9 @@ def updateDaumMovie(cate, metadata):
     if match:
       data = JSON.ObjectFromString(match.group(1), max_size = JSON_MAX_SIZE)
       for item in data:
-        episode_num = item['sequence']
-        episode = metadata.seasons['1'].episodes[episode_num]
+        episode_num = item['name']
+        if not episode_num: continue
+        episode = metadata.seasons['1'].episodes[int(episode_num)]
         episode.title = item['title']
         episode.summary = item['introduceDescription'].replace('\r\n', '\n').strip()
         if item['channels'][0]['broadcastDate']:
