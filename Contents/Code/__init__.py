@@ -46,10 +46,6 @@ DAUM_CR_TO_MPAA_CR = {
     u'제한상영가': {     # 어느 여름날 밤에 (2016)
         'KMRB': 'kr/X',
         'MPAA': 'NC-17'
-    },
-    u'미국 R 등급': {   # 나인 하프 위크 (1986)
-        'KMRB': 'kr/R',
-        'MPAA': 'R'
     }
 }
 
@@ -131,7 +127,10 @@ def updateDaumMovie(cate, metadata):
         metadata.duration = int(match.group(1))
         cr = match.group(2)
         if cr:
-          if cr in DAUM_CR_TO_MPAA_CR:
+          match = Regex(u'미국 (.*) 등급').search(cr)
+          if match:
+            metadata.content_rating = match.group(1)
+          elif cr in DAUM_CR_TO_MPAA_CR:
             metadata.content_rating = DAUM_CR_TO_MPAA_CR[cr]['MPAA' if Prefs['use_mpaa'] else 'KMRB']
           else:
             metadata.content_rating = 'kr/' + cr
