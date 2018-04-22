@@ -301,7 +301,7 @@ def updateDaumMovie(cate, metadata):
   if cate == 'tv':
     # (4) from episode page
     page = HTTP.Request(DAUM_TV_EPISODE % metadata.id).content
-    match = Regex('MoreView\.init\(\d+, (.*?)\);', Regex.DOTALL).search(page)
+    match = Regex('MoreView\.init\(\d+, (\[.*?\])\);', Regex.DOTALL).search(page)
     if match:
       data = JSON.ObjectFromString(match.group(1), max_size = JSON_MAX_SIZE)
       for item in data:
