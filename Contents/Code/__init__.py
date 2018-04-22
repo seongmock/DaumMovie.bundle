@@ -102,7 +102,7 @@ def updateDaumMovie(cate, metadata):
       metadata.title = match.group(1)
       metadata.year = int(match.group(2))
       metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
-      metadata.rating = float(html.xpath('//div[@class="subject_movie"]/div/em')[0].text)
+      metadata.rating = float(html.xpath('//em[@class="emph_grade"]')[0].text)
       # 장르
       metadata.genres.clear()
       dds = html.xpath('//dl[contains(@class, "list_movie")]/dd')
@@ -247,16 +247,17 @@ def updateDaumMovie(cate, metadata):
           meta_writer.name = writer['name']
         if 'photo' in writer:
           meta_writer.photo = writer['photo']
-    if roles:
-      metadata.roles.clear()
-      for role in roles:
-        meta_role = metadata.roles.new()
-        if 'role' in role:
-          meta_role.role = role['role']
-        if 'name' in role:
-          meta_role.name = role['name']
-        if 'photo' in role:
-          meta_role.photo = role['photo']
+
+  if roles:
+    metadata.roles.clear()
+    for role in roles:
+      meta_role = metadata.roles.new()
+      if 'role' in role:
+        meta_role.role = role['role']
+      if 'name' in role:
+        meta_role.name = role['name']
+      if 'photo' in role:
+        meta_role.photo = role['photo']
 
   # (3) from photo page
   url_tmpl = DAUM_TV_PHOTO if cate == 'tv' else DAUM_MOVIE_PHOTO
