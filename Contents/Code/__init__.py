@@ -177,7 +177,8 @@ def updateDaumMovie(cate, metadata):
         cast['name'] = item.xpath('.//*[@class="tit_join"]/em/text()')[0]
         match = Regex(u'^(.*?)( 역)?$').search(item.xpath('.//*[@class="txt_join"]/text()')[0])
         cast['role'] = match.group(1)
-        cast['photo'] = item.xpath('.//img[@class="thumb_photo"]/@src')[0]
+        src = item.xpath('.//img[@class="thumb_photo"]/@src')
+        cast['photo'] = src[0] if src else None
 
         if cast['role'] in [u'감독', u'연출']:
           directors.append(cast)
@@ -273,6 +274,7 @@ def updateDaumMovie(cate, metadata):
       #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
       idx_poster += 1
       try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail']), sort_order = idx_poster)
+      #try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_poster)
       except: pass
     elif item['photoCategory'] in ['2', '50'] and idx_art < max_art:
       art_url = item['fullname']
@@ -280,6 +282,7 @@ def updateDaumMovie(cate, metadata):
       #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
       idx_art += 1
       try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail']), sort_order = idx_art)
+      #try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_art)
       except: pass
   Log.Debug('Total %d posters, %d artworks' %(idx_poster, idx_art))
   if idx_poster == 0:
