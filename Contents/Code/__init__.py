@@ -10,6 +10,7 @@ DAUM_MOVIE_DETAIL = "http://movie.daum.net/moviedb/main?movieId=%s"
 DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?pageNo=1&pageSize=100&movieId=%s"
 DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
+DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s"
 DAUM_TV_DETAIL    = "http://movie.daum.net/tv/main?tvProgramId=%s"
 DAUM_TV_CAST      = "http://movie.daum.net/tv/crew?tvProgramId=%s"
 DAUM_TV_PHOTO     = "http://movie.daum.net/data/movie/photo/tv/list.json?pageNo=1&pageSize=100&id=%s"
@@ -58,20 +59,50 @@ def searchDaumMovie(cate, results, media, lang):
   media_name = media.show if cate == 'tv' else media.name
   media_name = unicodedata.normalize('NFKC', unicode(media_name)).strip()
   Log.Debug("search: %s %s" %(media_name, media.year))
-  data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (cate, urllib.quote(media_name.encode('utf8'))))
-  items = data['data']
-  for item in items:
-    year = str(item['prodYear'])
-    title = String.DecodeHTMLEntities(String.StripTags(item['titleKo'])).strip()
-    id = str(item['tvProgramId'] if cate == 'tv' else item['movieId'])
-    if year == media.year:
-      score = 95
-    elif len(items) == 1:
-      score = 80
-    else:
-      score = 10
-    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
-    results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
+
+  if cate == 'tv':
+    html = HTML.ElementFromURL(DAUM_TV_SRCH % urllib.quote(media_name.encode('utf8')))
+    tvp = html.xpath('//div[@id="tvpColl"]')[0]
+    if tvp:
+      items = []
+      a = tvp.xpath('//a[@class="tit_info"]')[0]
+      id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+      title = a.text.strip()
+      year = Regex('(\d{4})\.\d+.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
+      items.append({ 'id': id, 'title': title, 'year': year })
+
+      spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
+      for span in spans:
+        year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
+        a = span.xpath('./preceding-sibling::a[1]')[0]
+        id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+        title = a.text.strip()
+        items.append({ 'id': id, 'title': title, 'year': year })
+
+      for item in items:
+        if item['year'] == media.year:
+          score = 95
+        elif len(items) == 1:
+          score = 80
+        else:
+          score = 10
+        Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
+        results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
+  else:
+    data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (cate, urllib.quote(media_name.encode('utf8'))))
+    items = data['data']
+    for item in items:
+      year = str(item['prodYear'])
+      title = String.DecodeHTMLEntities(String.StripTags(item['titleKo'])).strip()
+      id = item['movieId']
+      if year == media.year:
+        score = 95
+      elif len(items) == 1:
+        score = 80
+      else:
+        score = 10
+      Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
+      results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
 
 def updateDaumMovie(cate, metadata):
   # (1) from detail page
