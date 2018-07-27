@@ -94,7 +94,7 @@ def searchDaumMovie(cate, results, media, lang):
     for item in items:
       year = str(item['prodYear'])
       title = String.DecodeHTMLEntities(String.StripTags(item['titleKo'])).strip()
-      id = item['movieId']
+      id = str(item['movieId'])
       if year == media.year:
         score = 95
       elif len(items) == 1:
