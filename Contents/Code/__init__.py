@@ -11,10 +11,7 @@ DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?
 DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
 DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s"
-DAUM_TV_DETAIL    = "http://movie.daum.net/tv/main?tvProgramId=%s"
-DAUM_TV_CAST      = "http://movie.daum.net/tv/crew?tvProgramId=%s"
-DAUM_TV_PHOTO     = "http://movie.daum.net/data/movie/photo/tv/list.json?pageNo=1&pageSize=100&id=%s"
-DAUM_TV_EPISODE   = "http://movie.daum.net/tv/episode?tvProgramId=%s"
+DAUM_TV_DETAIL    = "https://search.daum.net/search?w=tv&q=%s&irk=%s&irt=tv-program&DA=TVP"
 
 IMDB_TITLE_SRCH   = "http://www.google.com/search?q=site:imdb.com+%s"
 TVDB_TITLE_SRCH   = "http://thetvdb.com/api/GetSeries.php?seriesname=%s"
@@ -279,23 +276,26 @@ def updateDaumMovie(metadata):
     #   if match:
     #     metadata.original_title = match.group(1).strip()
 
-def updateDaumTV(metadata):
+def updateDaumTV(metadata, media):
   # (1) from detail page
-  poster_url = None
-
   try:
-    html = HTML.ElementFromURL(DAUM_TV_DETAIL % metadata.id)
-    metadata.title = html.xpath('//div[@class="subject_movie"]/strong')[0].text
+    html = HTML.ElementFromURL(DAUM_TV_DETAIL % (urllib.quote(media.title.encode('utf8')), metadata.id))
+    metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
     metadata.original_title = ''
-    metadata.rating = float(html.xpath('//div[@class="subject_movie"]/div/em')[0].text)
+    metadata.rating = None
     metadata.genres.clear()
-    metadata.genres.add(html.xpath('//dl[@class="list_movie"]/dd[2]')[0].text)
-    metadata.studio = html.xpath('//dl[@class="list_movie"]/dd[1]/em')[0].text
-    match = Regex('(\d{4}\.\d{2}\.\d{2})~(\d{4}\.\d{2}\.\d{2})?').search(html.xpath('//dl[@class="list_movie"]/dd[4]')[0].text)
+    # 드라마 (24부작)
+    metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
+    metadata.studio = html.xpath('//div[@class="txt_summary"]/span[1]')[0].text
+    match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(html.xpath('//div[@class="txt_summary"]/span[3]')[0].text)
     if match:
       metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
-    metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath('//div[@class="desc_movie"]')[0].text).strip())
-    poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
+    metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//dt[.="소개"]/following-sibling::dd')[0].text).strip())
+
+    # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
+    # poster_url = urlparse.parse_qs(urlparse.urlparse(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).query)['fname'][0]
+    poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
+    metadata.posters[poster_url] = Proxy.Media(HTTP.Request(poster_url))
   except Exception, e:
     Log.Debug(repr(e))
     pass
@@ -306,27 +306,36 @@ def updateDaumTV(metadata):
   writers = list()
   roles = list()
 
-  try:
-    html = HTML.ElementFromURL(DAUM_TV_CAST % metadata.id)
-    for item in html.xpath('//a[@class="link_join"]'):
+  for item in html.xpath('//div[@class="wrap_col lst"]/ul/li'):
+    try:
+      role = item.xpath('./span[@class="sub_name"]/text()')[0].strip()
       cast = dict()
-      cast['name'] = item.xpath('.//*[@class="tit_join"]/em/text()')[0]
-      match = Regex(u'^(.*?)( 역)?$').search(item.xpath('.//*[@class="txt_join"]/text()')[0])
-      cast['role'] = match.group(1)
-      src = item.xpath('.//img[@class="thumb_photo"]/@src')
-      cast['photo'] = src[0] if src else None
-
-      if cast['role'] in [u'감독', u'연출']:
+      cast['name'] = item.xpath('./span[@class="txt_name"]/a/text()')[0]
+      cast['photo'] = item.xpath('./div/a/img/@src')[0]
+      if role in [u'감독', u'연출']:
         directors.append(cast)
-      elif cast['role'] == u'제작':
+      elif role in [u'제작']:
         producers.append(cast)
-      elif cast['role'] in [u'극본', u'각본']:
+      elif role in [u'극본', u'각본']:
         writers.append(cast)
       else:
-        roles.append(cast)
-  except Exception, e:
-    Log.Debug(repr(e))
-    pass
+        Log('Unknown role %s' % role)
+    except: pass
+
+  for item in html.xpath('//div[@class="wrap_col castingList"]/ul/li'):
+    try:
+      cast = dict()
+      a = item.xpath('./span[@class="sub_name"]/a')
+      if a:
+        cast['name'] = a[0].text
+        cast['role'] = item.xpath('./span[@class="txt_name"]/a')[0].text
+        cast['photo'] = 'https:' + item.xpath('./div/a/img/@src')[0]
+      else:
+        cast['name'] = item.xpath('./span[@class="txt_name"]/a')[0].text
+        cast['role'] = item.xpath('./span[@class="sub_name"]')[0].text.strip()
+        cast['photo'] = 'https:' + item.xpath('./div/a/img/@src')[0]
+      roles.append(cast)
+    except: pass
 
   if roles:
     metadata.roles.clear()
@@ -339,85 +348,42 @@ def updateDaumTV(metadata):
       if 'photo' in role:
         meta_role.photo = role['photo']
 
-  # (3) from photo page
-  url_tmpl = DAUM_TV_PHOTO
-  data = JSON.ObjectFromURL(url=url_tmpl % metadata.id)
-  max_poster = int(Prefs['max_num_posters'])
-  max_art = int(Prefs['max_num_arts'])
-  idx_poster = 0
-  idx_art = 0
-  for item in data['data']:
-    if item['photoCategory'] == '1' and idx_poster < max_poster:
-      art_url = item['fullname']
-      if not art_url: continue
-      #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
-      idx_poster += 1
-      try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail']), sort_order = idx_poster)
-      #try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_poster)
-      except: pass
-    elif item['photoCategory'] in ['2', '50'] and idx_art < max_art:
-      art_url = item['fullname']
-      if not art_url: continue
-      #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
-      idx_art += 1
-      try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail']), sort_order = idx_art)
-      #try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_art)
-      except: pass
-  Log.Debug('Total %d posters, %d artworks' %(idx_poster, idx_art))
-  if idx_poster == 0:
-    if poster_url:
-      poster = HTTP.Request( poster_url )
-      try: metadata.posters[poster_url] = Proxy.Media(poster)
-      except: pass
-    # else:
-    #   url = 'http://m.movie.daum.net/m/tv/main?tvProgramId=%s' % metadata.id
-    #   html = HTML.ElementFromURL( url )
-    #   arts = html.xpath('//img[@class="thumb_program"]')
-    #   for art in arts:
-    #     art_url = art.attrib['src']
-    #     if not art_url: continue
-    #     art = HTTP.Request( art_url )
-    #     idx_poster += 1
-    #     metadata.posters[art_url] = Proxy.Preview(art, sort_order = idx_poster)
-
   # (4) from episode page
-  page = HTTP.Request(DAUM_TV_EPISODE % metadata.id).content
-  match = Regex('MoreView\.init\(\d+, (\[.*?\])\);', Regex.DOTALL).search(page)
-  if match:
-    data = JSON.ObjectFromString(match.group(1), max_size = JSON_MAX_SIZE)
-    for item in data:
-      episode_num = item['name']
-      if not episode_num: continue
-      episode = metadata.seasons['1'].episodes[int(episode_num)]
-      episode.title = item['title']
-      episode.summary = item['introduceDescription'].replace('\r\n', '\n').strip()
-      if item['channels'][0]['broadcastDate']:
-        episode.originally_available_at = Datetime.ParseDate(item['channels'][0]['broadcastDate'], '%Y%m%d').date()
-      try: episode.rating = float(item['rate'])
-      except: pass
-      if directors:
-        episode.directors.clear()
-        for director in directors:
-          meta_director = episode.directors.new()
-          if 'name' in director:
-            meta_director.name = director['name']
-          if 'photo' in director:
-            meta_director.photo = director['photo']
-      if writers:
-        episode.writers.clear()
-        for writer in writers:
-          meta_writer = episode.writers.new()
-          if 'name' in writer:
-            meta_writer.name = writer['name']
-          if 'photo' in writer:
-            meta_writer.photo = writer['photo']
+  hrefs = html.xpath('//ul[@id="clipDateList"]/li/a/@href')
+  for idx, href in enumerate(hrefs):
+    html = HTML.ElementFromURL('https://search.daum.net/search' + href, cacheTime=CACHE_1MONTH if idx < len(hrefs) - 1 else CACHE_1DAY)
+    episode_num = html.xpath(u'substring-before(//div[@class="tit_episode"]/strong/text(),"회")')
+    episode = metadata.seasons['1'].episodes[int(episode_num)]
+    episode.summary = ' '.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]/text()'))
+    match = Regex('(\d+\.\d+\.\d+)').search(html.xpath('//span[@class="txt_date "]/text()')[0])
+    if match:
+      episode.originally_available_at = Datetime.ParseDate(match.group(1)).date()
+      episode.title = str(episode.originally_available_at)
+    episode.rating = None
 
-    # (5) fill missing info
-    # if Prefs['override_tv_id'] != 'None':
-    #   page = HTTP.Request(DAUM_TV_DETAIL2 % metadata.id).content
-    #   match = Regex('<em class="title_AKA"> *<span class="eng">([^<]*)</span>').search(page)
-    #   if match:
-    #     metadata.original_title = match.group(1).strip()
+    if directors:
+      episode.directors.clear()
+      for director in directors:
+        meta_director = episode.directors.new()
+        if 'name' in director:
+          meta_director.name = director['name']
+        if 'photo' in director:
+          meta_director.photo = director['photo']
+    if writers:
+      episode.writers.clear()
+      for writer in writers:
+        meta_writer = episode.writers.new()
+        if 'name' in writer:
+          meta_writer.name = writer['name']
+        if 'photo' in writer:
+          meta_writer.photo = writer['photo']
+
+  #   # (5) fill missing info
+  #   # if Prefs['override_tv_id'] != 'None':
+  #   #   page = HTTP.Request(DAUM_TV_DETAIL2 % metadata.id).content
+  #   #   match = Regex('<em class="title_AKA"> *<span class="eng">([^<]*)</span>').search(page)
+  #   #   if match:
+  #   #     metadata.original_title = match.group(1).strip()
 
 ####################################################################################################
 class DaumMovieAgent(Agent.Movies):
@@ -455,7 +421,7 @@ class DaumMovieTvAgent(Agent.TV_Shows):
 
   def update(self, metadata, media, lang):
     Log.Info("in update ID = %s" % metadata.id)
-    updateDaumTV(metadata)
+    updateDaumTV(metadata, media)
 
     # override metadata ID
     if Prefs['override_tv_id'] != 'None':
