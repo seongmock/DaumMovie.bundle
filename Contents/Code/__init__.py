@@ -51,24 +51,6 @@ def Start():
   HTTP.CacheTime = CACHE_1HOUR * 12
   HTTP.Headers['Accept'] = 'text/html, application/json'
 
-def convertToInitialLetters(text):
-  CHOSUNG_START_LETTER = 4352
-  JAMO_START_LETTER = 44032
-  JAMO_END_LETTER = 55203
-  JAMO_CYCLE = 588
-
-  def isHangul(ch):
-    return ord(ch) >= JAMO_START_LETTER and ord(ch) <= JAMO_END_LETTER
-
-  result = u""
-  for i in range(0, len(text)):
-    if isHangul(text[i]):
-      result += unichr(int((ord(text[i]) - JAMO_START_LETTER)/JAMO_CYCLE + CHOSUNG_START_LETTER))
-    else:
-      result += text[i]
-
-  return result
-
 ####################################################################################################
 def searchDaumMovie(results, media, lang):
   media_name = media.name
@@ -132,7 +114,7 @@ def updateDaumMovie(metadata):
     title = html.xpath('//div[@class="subject_movie"]/strong')[0].text
     match = Regex('(.*?) \((\d{4})\)').search(title)
     metadata.title = match.group(1)
-    metadata.title_sort = convertToInitialLetters(match.group(1)[0]) + " " + match.group(1)
+    metadata.title_sort = unicodedata.normalize('NFKD', metadata.title[0])[0] + ' ' + metadata.title
     metadata.year = int(match.group(2))
     metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
     metadata.rating = float(html.xpath('//em[@class="emph_grade"]')[0].text)
@@ -300,6 +282,7 @@ def updateDaumTV(metadata, media):
   try:
     html = HTML.ElementFromURL(DAUM_TV_DETAIL % (urllib.quote(media.title.encode('utf8')), metadata.id))
     metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
+    metadata.title_sort = unicodedata.normalize('NFKD', metadata.title[0])[0] + ' ' + metadata.title
     metadata.original_title = ''
     metadata.rating = None
     metadata.genres.clear()
