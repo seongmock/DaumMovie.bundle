@@ -84,7 +84,7 @@ def searchDaumTV(results, media, lang):
     a = tvp.xpath('//a[@class="tit_info"]')[0]
     id = Regex('irk=(\d+)').search(a.get('href')).group(1)
     title = a.text.strip()
-    year = Regex('(\d{4})\.\d+.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
+    year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
     items.append({ 'id': id, 'title': title, 'year': year })
 
     spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
@@ -314,11 +314,11 @@ def updateDaumTV(metadata, media):
       cast = dict()
       cast['name'] = item.xpath('./span[@class="txt_name"]/a/text()')[0]
       cast['photo'] = item.xpath('./div/a/img/@src')[0]
-      if role in [u'감독', u'연출']:
+      if role in [u'감독', u'연출', u'조감독']:
         directors.append(cast)
-      elif role in [u'제작', u'프로듀서', u'책임프로듀서']:
+      elif role in [u'제작', u'프로듀서', u'책임프로듀서', u'기획']:
         producers.append(cast)
-      elif role in [u'극본', u'각본']:
+      elif role in [u'극본', u'각본', u'원작']:
         writers.append(cast)
       else:
         Log('Unknown role %s' % role)
