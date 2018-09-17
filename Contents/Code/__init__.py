@@ -81,9 +81,8 @@ def searchDaumTV(results, media, lang):
   tvp = html.xpath('//div[@id="tvpColl"]')[0]
   if tvp:
     items = []
-    a = tvp.xpath('//a[@class="tit_info"]')[0]
-    id = Regex('irk=(\d+)').search(a.get('href')).group(1)
-    title = a.text.strip()
+    id = Regex('irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1)
+    title = ''.join(tvp.xpath('//a[@class="tit_info"]/text()'))
     year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
     items.append({ 'id': id, 'title': title, 'year': year })
 
