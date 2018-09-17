@@ -351,34 +351,35 @@ def updateDaumTV(metadata, media):
         meta_role.photo = role['photo']
 
   # (4) from episode page
-  hrefs = html.xpath('//ul[@id="clipDateList"]/li/a/@href')
-  for idx, href in enumerate(hrefs):
-    html = HTML.ElementFromURL('https://search.daum.net/search' + href, cacheTime=CACHE_1MONTH if idx < len(hrefs) - 1 else CACHE_1DAY)
-    episode_num = html.xpath(u'substring-before(//div[@class="tit_episode"]/strong/text(),"회")')
-    episode = metadata.seasons['1'].episodes[int(episode_num)]
-    episode.summary = ' '.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]/text()'))
-    match = Regex('(\d+\.\d+\.\d+)').search(html.xpath('//span[@class="txt_date "]/text()')[0])
-    if match:
-      episode.originally_available_at = Datetime.ParseDate(match.group(1)).date()
-      episode.title = str(episode.originally_available_at)
-    episode.rating = None
+  episode_as = html.xpath('//ul[@id="clipDateList"]/li/a')
+  for a in episode_as:
+    episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
+    if episode_num in media.seasons['1'].episodes:
+      html = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
+      episode = metadata.seasons['1'].episodes[episode_num]
+      episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]//text()')).strip()
+      match = Regex('(\d+\.\d+\.\d+)').search(html.xpath('//span[@class="txt_date "]/text()')[0])
+      if match:
+        episode.originally_available_at = Datetime.ParseDate(match.group(1)).date()
+        episode.title = str(episode.originally_available_at)
+      episode.rating = None
 
-    if directors:
-      episode.directors.clear()
-      for director in directors:
-        meta_director = episode.directors.new()
-        if 'name' in director:
-          meta_director.name = director['name']
-        if 'photo' in director:
-          meta_director.photo = director['photo']
-    if writers:
-      episode.writers.clear()
-      for writer in writers:
-        meta_writer = episode.writers.new()
-        if 'name' in writer:
-          meta_writer.name = writer['name']
-        if 'photo' in writer:
-          meta_writer.photo = writer['photo']
+      if directors:
+        episode.directors.clear()
+        for director in directors:
+          meta_director = episode.directors.new()
+          if 'name' in director:
+            meta_director.name = director['name']
+          if 'photo' in director:
+            meta_director.photo = director['photo']
+      if writers:
+        episode.writers.clear()
+        for writer in writers:
+          meta_writer = episode.writers.new()
+          if 'name' in writer:
+            meta_writer.name = writer['name']
+          if 'photo' in writer:
+            meta_writer.photo = writer['photo']
 
   #   # (5) fill missing info
   #   # if Prefs['override_tv_id'] != 'None':
