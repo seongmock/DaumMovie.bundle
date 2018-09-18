@@ -86,6 +86,13 @@ def searchDaumTV(results, media, lang):
     year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
     items.append({ 'id': id, 'title': title, 'year': year })
 
+    lis = tvp.xpath('//div[@id="tv_series"]//li')
+    for li in lis:
+      id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
+      title = li.xpath('./a')[0].text
+      year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
+      items.append({ 'id': id, 'title': title, 'year': year })
+
     spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
     for span in spans:
       year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
