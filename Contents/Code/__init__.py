@@ -360,41 +360,35 @@ def updateDaumTV(metadata, media):
   episode_as = html.xpath('//ul[@id="clipDateList"]/li/a')
   for a in episode_as:
     date = a.xpath('./parent::li/@data-clip')[0]
+    season_num = '1'
     episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
     if not episode_num: continue    # 시청지도서
-    eps = [
-      { 'season_num': '1',       'episode_num': episode_num }, # S1, E1
-      { 'season_num': date[0:4], 'episode_num': date[4:] },    # S2015, E1106
-      { 'season_num': date[2:4], 'episode_num': date[4:] }     # S15, E1106
-    ]
-    for ep in eps:
-      season_num = int(ep['season_num'])
-      episode_num = int(ep['episode_num'])
-      if season_num in media.seasons and episode_num in media.seasons[season_num].episodes:
-        html = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
-        episode = metadata.seasons[season_num].episodes[episode_num]
-        episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]//text()')).strip()
-        if match:
-          episode.originally_available_at = Datetime.ParseDate(date, '%Y%m%d')
-          episode.title = str(episode.originally_available_at)
-        episode.rating = None
+    date_based_season_num = date[:4]
+    date_based_episode_num = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
+    if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+        (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+      episode = metadata.seasons[season_num].episodes[episode_num]
+      episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]//text()')).strip()
+      episode.originally_available_at = Datetime.ParseDate(date, '%Y%m%d').date()
+      episode.title = str(episode.originally_available_at)
+      episode.rating = None
 
-        if directors:
-          episode.directors.clear()
-          for director in directors:
-            meta_director = episode.directors.new()
-            if 'name' in director:
-              meta_director.name = director['name']
-            if 'photo' in director:
-              meta_director.photo = director['photo']
-        if writers:
-          episode.writers.clear()
-          for writer in writers:
-            meta_writer = episode.writers.new()
-            if 'name' in writer:
-              meta_writer.name = writer['name']
-            if 'photo' in writer:
-              meta_writer.photo = writer['photo']
+      if directors:
+        episode.directors.clear()
+        for director in directors:
+          meta_director = episode.directors.new()
+          if 'name' in director:
+            meta_director.name = director['name']
+          if 'photo' in director:
+            meta_director.photo = director['photo']
+      if writers:
+        episode.writers.clear()
+        for writer in writers:
+          meta_writer = episode.writers.new()
+          if 'name' in writer:
+            meta_writer.name = writer['name']
+          if 'photo' in writer:
+            meta_writer.photo = writer['photo']
 
   #   # (5) fill missing info
   #   # if Prefs['override_tv_id'] != 'None':
