@@ -78,38 +78,46 @@ def searchDaumTV(results, media, lang):
   Log.Debug("search: %s %s" %(media_name, media.year))
 
   html = HTML.ElementFromURL(DAUM_TV_SRCH % urllib.quote(media_name.encode('utf8')))
-  tvp = html.xpath('//div[@id="tvpColl"]')[0]
-  if tvp:
-    items = []
-    id = Regex('irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1)
-    title = ''.join(tvp.xpath('//a[@class="tit_info"]/text()'))
+  try:
+    tvp = html.xpath('//div[@id="tvpColl"]')[0]
+  except:
+    Log.Debug('No TV matches found')
+    return
+
+  items = []
+  id = Regex('irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1)
+  title = ''.join(tvp.xpath('//a[@class="tit_info"]/text()'))
+  try:
     year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
     items.append({ 'id': id, 'title': title, 'year': year })
+  except: pass
 
-    lis = tvp.xpath('//div[@id="tv_series"]//li')
-    for li in lis:
-      id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
-      title = li.xpath('./a')[0].text
+  lis = tvp.xpath('//div[@id="tv_series"]//li')
+  for li in lis:
+    id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
+    title = li.xpath('./a')[0].text
+    try:
       year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
       items.append({ 'id': id, 'title': title, 'year': year })
+    except: pass
 
-    spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
-    for span in spans:
-      year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
-      a = span.xpath('./preceding-sibling::a[1]')[0]
-      id = Regex('irk=(\d+)').search(a.get('href')).group(1)
-      title = a.text.strip()
-      items.append({ 'id': id, 'title': title, 'year': year })
+  spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
+  for span in spans:
+    year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
+    a = span.xpath('./preceding-sibling::a[1]')[0]
+    id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+    title = a.text.strip()
+    items.append({ 'id': id, 'title': title, 'year': year })
 
-    for item in items:
-      if item['year'] == media.year:
-        score = 95
-      elif len(items) == 1:
-        score = 80
-      else:
-        score = 10
-      Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
-      results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
+  for item in items:
+    if item['year'] == media.year:
+      score = 95
+    elif len(items) == 1:
+      score = 80
+    else:
+      score = 10
+    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
+    results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
 
 def updateDaumMovie(metadata):
   # (1) from detail page
@@ -367,6 +375,7 @@ def updateDaumTV(metadata, media):
     date_based_episode_num = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
     if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
         (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+      html = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
       episode = metadata.seasons[season_num].episodes[episode_num]
       episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]//text()')).strip()
       episode.originally_available_at = Datetime.ParseDate(date, '%Y%m%d').date()
