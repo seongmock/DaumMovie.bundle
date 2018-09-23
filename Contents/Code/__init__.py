@@ -76,7 +76,6 @@ def searchDaumTV(results, media, lang):
   media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
   media_year = media.year
   if not media_year:
-    Log(os.path.basename(urllib.unquote(media.filename)))
     match = Regex('\D(\d{2})[01]\d[0-3]\d\D').search(os.path.basename(urllib.unquote(media.filename)))
     if match:
       media_year = '20' + match.group(1)
@@ -383,9 +382,10 @@ def updateDaumTV(metadata, media):
         (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
       html = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
       episode = metadata.seasons[season_num].episodes[episode_num]
-      episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]//text()')).strip()
+      subtitle = html.xpath('//p[@class="episode_desc"]/strong/text()')
+      episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]/text()')).strip()
       episode.originally_available_at = Datetime.ParseDate(date, '%Y%m%d').date()
-      episode.title = str(episode.originally_available_at)
+      episode.title = subtitle[0] if subtitle else episode.originally_available_at.strftime('%Y-%m-%d')
       episode.rating = None
 
       if directors:
