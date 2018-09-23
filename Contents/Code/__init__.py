@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 # Daum Movie
 
-import urllib, unicodedata
+import urllib, unicodedata, os
 
 DAUM_MOVIE_SRCH   = "http://movie.daum.net/data/movie/search/v2/movie.json?size=20&start=1&searchText=%s"
 
@@ -73,10 +73,16 @@ def searchDaumMovie(results, media, lang):
     results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
 
 def searchDaumTV(results, media, lang):
-  media_name = media.show
-  media_name = unicodedata.normalize('NFKC', unicode(media_name)).strip()
-  Log.Debug("search: %s %s" %(media_name, media.year))
+  media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
+  media_year = media.year
+  if not media_year:
+    Log(os.path.basename(urllib.unquote(media.filename)))
+    match = Regex('\D(\d{2})[01]\d[0-3]\d\D').search(os.path.basename(urllib.unquote(media.filename)))
+    if match:
+      media_year = '20' + match.group(1)
+  Log.Debug("search: %s %s" %(media_name, media_year))
 
+  # TV검색
   html = HTML.ElementFromURL(DAUM_TV_SRCH % urllib.quote(media_name.encode('utf8')))
   try:
     tvp = html.xpath('//div[@id="tvpColl"]')[0]
@@ -92,6 +98,7 @@ def searchDaumTV(results, media, lang):
     items.append({ 'id': id, 'title': title, 'year': year })
   except: pass
 
+  # TV검색 > 시리즈
   lis = tvp.xpath('//div[@id="tv_series"]//li')
   for li in lis:
     id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
@@ -101,6 +108,7 @@ def searchDaumTV(results, media, lang):
       items.append({ 'id': id, 'title': title, 'year': year })
     except: pass
 
+  # TV검색 > 동명 콘텐츠
   spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
   for span in spans:
     year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
@@ -109,12 +117,11 @@ def searchDaumTV(results, media, lang):
     title = a.text.strip()
     items.append({ 'id': id, 'title': title, 'year': year })
 
-  for item in items:
-    if item['year'] == media.year:
-      score = 95
-    elif len(items) == 1:
-      score = 80
-    else:
+  for idx, item in enumerate(items):
+    score = 80 - idx * 20
+    if media_year:
+      score += (2 - min(2, abs(int(media_year) - int(item['year'])))) * 5
+    if score < 10:
       score = 10
     Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
     results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
@@ -365,8 +372,7 @@ def updateDaumTV(metadata, media):
         meta_role.photo = role['photo']
 
   # (4) from episode page
-  episode_as = html.xpath('//ul[@id="clipDateList"]/li/a')
-  for a in episode_as:
+  for a in html.xpath('//ul[@id="clipDateList"]/li/a'):
     date = a.xpath('./parent::li/@data-clip')[0]
     season_num = '1'
     episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
