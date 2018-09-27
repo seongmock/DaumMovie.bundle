@@ -75,7 +75,7 @@ def searchDaumMovie(results, media, lang):
 def searchDaumTV(results, media, lang):
   media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
   media_year = media.year
-  if not media_year:
+  if not media_year and media.filename:
     match = Regex('\D(\d{2})[01]\d[0-3]\d\D').search(os.path.basename(urllib.unquote(media.filename)))
     if match:
       media_year = '20' + match.group(1)
@@ -380,10 +380,10 @@ def updateDaumTV(metadata, media):
     date_based_episode_num = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
     if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
         (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-      html = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
+      page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
       episode = metadata.seasons[season_num].episodes[episode_num]
-      subtitle = html.xpath('//p[@class="episode_desc"]/strong/text()')
-      episode.summary = '\n'.join(txt.strip() for txt in html.xpath('//p[@class="episode_desc"]/text()')).strip()
+      subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
+      episode.summary = '\n'.join(txt.strip() for txt in page.xpath('//p[@class="episode_desc"]/text()')).strip()
       episode.originally_available_at = Datetime.ParseDate(date, '%Y%m%d').date()
       episode.title = subtitle[0] if subtitle else episode.originally_available_at.strftime('%Y-%m-%d')
       episode.rating = None
@@ -404,6 +404,51 @@ def updateDaumTV(metadata, media):
             meta_writer.name = writer['name']
           if 'photo' in writer:
             meta_writer.photo = writer['photo']
+
+  # TV검색 > TV정보 > 다시보기
+  vod = html.xpath(u'//span[.=" 다시보기 "]/parent::a/@href')
+  if vod:
+    prog_codes = []
+    if 'www.imbc.com' in vod[0]:
+      try:
+        # http://www.imbc.com/broad/tv/ent/challenge/vod/index.html
+        page = HTML.ElementFromURL(vod[0])
+        prog_codes.append(Regex('var progCode = "(.*?)";').search(page.xpath('//script[contains(.,"var progCode = ")]/text()')[0]).group(1))
+        # for season_vod in page.xpath('//map[@name="vod"]/area/@href'):
+        #   # http://www.imbc.com/broad/tv/ent/challenge/vod1/
+        #   # http://www.imbc.com/broad/tv/ent/challenge/vod2/
+        #   page = HTML.ElementFromURL(season_vod)
+        #   prog_codes.append(Regex('var progCode = "(.*?)";').search(page.xpath('//script[contains(.,"var progCode = ")]/text()')[0]).group(1))
+        for prog_code in prog_codes:
+          page = HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_sbox.aspx?kind=image&progCode=%s' % prog_code).content
+          years = Regex("<option value='(\d+)'>").findall(page)
+          for year in years:
+            page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_sbox_contents.aspx?progCode=%s&yyyy=%s&callback=jQuery1123011760857070017172_1538059867383&_=1538059867389'
+                % (prog_code, year)).content, 'euc-kr')
+            bcasts = JSON.ObjectFromString(Regex('jQuery1123011760857070017172_1538059867383\((.*)\)$').search(page).group(1))
+            for bcast in bcasts:
+              if u'특집' in bcast['ContentNumber']:           # 특집10회, 특집회, 추석특집
+                # Log('ignoring %s' % bcast['ContentNumber'])
+                continue
+              season_num = '1'
+              episode_num = bcast['ContentNumber'][:-1]
+              date_based_season_num = bcast['BroadDate'][:4]
+              date_based_episode_num = bcast['BroadDate']     # 2018-09-25
+              if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+                  (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+                episode = metadata.seasons[season_num].episodes[episode_num]
+                if episode.summary:
+                  continue
+                page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_json.aspx?kind=image&progCode=%s&callback=jQuery111104041909438012061_1538031601249&_=1538031601252'
+                    % bcast['BroadCastID']).content, 'euc-kr')
+                info = JSON.ObjectFromString(Regex('jQuery111104041909438012061_1538031601249\((.*)\)$').search(page).group(1))[0]
+                episode.summary = info['Content'].replace('\r\n', '\n').replace('<br><br>', '\n').replace('<br>', '').strip()
+                episode.originally_available_at = Datetime.ParseDate(info['BroadDate'], '%Y-%m-%d').date()
+                episode.title = info['Title']
+                episode.rating = None
+      except Exception, e:
+        Log.Debug(repr(e))
+        pass
 
   #   # (5) fill missing info
   #   # if Prefs['override_tv_id'] != 'None':
