@@ -462,6 +462,41 @@ def updateDaumTV(metadata, media):
         Log.Debug(repr(e))
         pass
 
+    elif 'programs.sbs.co.kr' in vod[0]:
+      try:
+        # http://programs.sbs.co.kr/enter/jungle/vods/50479
+        programcd, mnuid = Regex('http://programs\.sbs\.co\.kr/(.+?)/(.+?)/vods/(.+)$').search(vod[0]).group(2, 3)
+
+        # http://static.apis.sbs.co.kr/program-api/1.0/menu/jungle
+        menu = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/program-api/1.0/menu/%s' % programcd)
+
+        # http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?...
+        vods = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?offset=%d&limit=%d&sort=new&search=&cliptype=&subcategory=&programid=%s&absolute_show=Y&mdadiv=01&viewcount=Y' %
+            ( 0, 2000, menu['program']['channelid'] + '_V' + menu['program']['programid'][-10:] ))
+        for v in vods['list']:
+          # Log('%s %s-%s %s' % (v['broaddate'], v['content']['contentnumber'], v['content']['cornerid'], v['content']['contenttitle'] ))
+          if v['content']['cornerid'] != 0: # 스페셜
+            continue
+          season_num = '1'
+          episode_num = v['content']['contentnumber']
+          date_based_season_num = v['broaddate'][:4]
+          date_based_episode_num = v['broaddate'][:10]     # 2018-09-28
+          if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+              (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+            episode = metadata.seasons[season_num].episodes[episode_num]
+            if episode.summary:
+              continue
+            episode.summary = String.DecodeHTMLEntities(String.StripTags(v['synopsis'])).strip()
+            episode.originally_available_at = Datetime.ParseDate(v['broaddate'], '%Y-%m-%d').date()   # fix TZ
+            episode.title = v['content']['contenttitle'].strip()
+            episode.rating = None
+      except Exception, e:
+        Log.Debug(repr(e))
+        pass
+
+    else:
+      Log(vod[0])
+
   #   # (5) fill missing info
   #   # if Prefs['override_tv_id'] != 'None':
   #   #   page = HTTP.Request(DAUM_TV_DETAIL2 % metadata.id).content
