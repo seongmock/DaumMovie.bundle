@@ -75,10 +75,10 @@ def searchDaumMovie(results, media, lang):
 def searchDaumTV(results, media, lang):
   media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
   media_year = media.year
-  if not media_year and media.filename:
-    match = Regex('\D(\d{2})[01]\d[0-3]\d\D').search(os.path.basename(urllib.unquote(media.filename)))
-    if match:
-      media_year = '20' + match.group(1)
+  # if not media_year and media.filename:
+  #   match = Regex('\D(\d{2})[01]\d[0-3]\d\D').search(os.path.basename(urllib.unquote(media.filename)))
+  #   if match:
+  #     media_year = '20' + match.group(1)
   Log.Debug("search: %s %s" %(media_name, media_year))
 
   # TV검색
@@ -98,14 +98,26 @@ def searchDaumTV(results, media, lang):
   except: pass
 
   # TV검색 > 시리즈
-  lis = tvp.xpath('//div[@id="tv_series"]//li')
-  for li in lis:
-    id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
-    title = li.xpath('./a')[0].text
-    try:
-      year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
-      items.append({ 'id': id, 'title': title, 'year': year })
-    except: pass
+  more_a = tvp.xpath(u'//span[.="시리즈 더보기"]/parent::a')
+  if more_a:
+    html = HTML.ElementFromURL('https://search.daum.net/search%s' % more_a[0].get('href'))
+    for li in html.xpath('//div[@id="series"]//li'):
+      a = li.xpath('.//a')[1]
+      id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+      title = a.text
+      try:
+        year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
+        items.append({ 'id': id, 'title': title, 'year': year })
+      except: pass
+  else:
+    lis = tvp.xpath('//div[@id="tv_series"]//li')
+    for li in lis:
+      id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
+      title = li.xpath('./a')[0].text
+      try:
+        year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
+        items.append({ 'id': id, 'title': title, 'year': year })
+      except: pass
 
   # TV검색 > 동명 콘텐츠
   spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
@@ -427,7 +439,7 @@ def updateDaumTV(metadata, media):
                 % (prog_code, year)).content, 'euc-kr')
             bcasts = JSON.ObjectFromString(Regex('jQuery1123011760857070017172_1538059867383\((.*)\)$').search(page).group(1))
             for bcast in bcasts:
-              if u'특집' in bcast['ContentNumber']:           # 특집10회, 특집회, 추석특집
+              if u'특집' in bcast['ContentNumber'] or u'스페셜' in bcast['ContentNumber']:   # 특집05회, 특집회, 추석특집회, 스페셜회
                 # Log('ignoring %s' % bcast['ContentNumber'])
                 continue
               season_num = '1'
