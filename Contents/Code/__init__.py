@@ -472,7 +472,7 @@ def updateDaumTV(metadata, media):
 
         # http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?...
         vods = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?offset=%d&limit=%d&sort=new&search=&cliptype=&subcategory=&programid=%s&absolute_show=Y&mdadiv=01&viewcount=Y' %
-            ( 0, 2000, menu['program']['channelid'] + '_V' + menu['program']['programid'][-10:] ))
+            ( 0, 2000, menu['program']['channelid'] + '_V' + menu['program']['programid'][-10:] ), max_size = JSON_MAX_SIZE)
         for v in vods['list']:
           # Log('%s %s-%s %s' % (v['broaddate'], v['content']['contentnumber'], v['content']['cornerid'], v['content']['contenttitle'] ))
           if v['content']['cornerid'] != 0: # 스페셜
@@ -490,6 +490,51 @@ def updateDaumTV(metadata, media):
             episode.originally_available_at = Datetime.ParseDate(v['broaddate'], '%Y-%m-%d').date()   # fix TZ
             episode.title = v['content']['contenttitle'].strip()
             episode.rating = None
+      except Exception, e:
+        Log.Debug(repr(e))
+        pass
+
+    elif 'program.kbs.co.kr' in vod[0]:
+      try:
+        # http://program.kbs.co.kr/2tv/enter/gagcon/pc/list.html?smenu=c2cc5a
+        source, sname, stype, smenu = Regex('program.kbs.co.kr/(.+?)/(.+?)/(.+?)/pc/list.html\?smenu=(.+)$').search(vod[0]).group(1, 2, 3, 4)
+
+        # http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=c2cc5a&source=2tv&sname=enter&stype=gagcon&page_type=list
+        menu = JSON.ObjectFromURL('http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=%s&source=%s&sname=%s&stype=%s&page_type=list' %
+            ( smenu, source, sname, stype ))
+
+        page = 1
+        while True:
+          # https://ummsapi.kbs.co.kr/landing/contents/episode/list?rtype=jsonp&sort_option=rdatetime%20desc&program_code=T2000-0065&page=1&page_size=9&&callback=angular.callbacks._0
+          res = JSON.ObjectFromURL('https://ummsapi.kbs.co.kr/landing/contents/episode/list?rtype=json&sort_option=rdatetime%%20desc&program_code=%s&page=%d&page_size=%d' %
+              ( menu['data']['site']['meta']['program_code'], page, 500 ))
+          if 'error_msg' in res:
+            Log.Debug(res['error_msg'])
+            break
+
+          for v in res['data']:
+            # Log('%s %s %s' % (v['program_date'], v['program_number'], v['program_subtitle'] or v['description']))
+            if not v['program_number']:
+              continue
+            episode_date = Datetime.ParseDate(v['program_date'], '%Y%m%d').date()
+            season_num = '1'
+            episode_num = v['program_number']
+            date_based_season_num = episode_date.year
+            date_based_episode_num = episode_date.strftime('%Y-%m-%d')
+            if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+                (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+              episode = metadata.seasons[season_num].episodes[episode_num]
+              if episode.summary and u'회차정보가 없습니다' not in episode.summary:
+                continue
+              episode.summary = v['program_summary']
+              episode.originally_available_at = episode_date
+              episode.title = v['program_subtitle'] or v['description'] or date_based_episode_num
+              episode.rating = None
+
+          page += 1
+          if page > res['page_count']:
+            break
+
       except Exception, e:
         Log.Debug(repr(e))
         pass
