@@ -417,8 +417,18 @@ def updateDaumTV(metadata, media):
           if 'photo' in writer:
             meta_writer.photo = writer['photo']
 
+  # TV검색 > TV정보 > 공식홈
+  home = html.xpath(u'//a[span[contains(.,"공식홈")]]/@href')
+  if home:
+    if 'www.imbc.com' in home[0]:
+      page = HTML.ElementFromURL(home[0])
+      for prv in page.xpath('//div[@class="roll-ban-event"]/ul/li/img/@src'):
+        if prv not in metadata.art:
+          try: metadata.art[prv] = Proxy.Preview(HTTP.Request(prv), sort_order = len(metadata.art) + 1)
+          except Exception, e: Log(str(e))
+
   # TV검색 > TV정보 > 다시보기
-  vod = html.xpath(u'//span[.=" 다시보기 "]/parent::a/@href')
+  vod = html.xpath(u'//a[span[contains(.,"다시보기")]]/@href')
   if vod:
     prog_codes = []
     if 'www.imbc.com' in vod[0]:
@@ -470,6 +480,11 @@ def updateDaumTV(metadata, media):
         # http://static.apis.sbs.co.kr/program-api/1.0/menu/jungle
         menu = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/program-api/1.0/menu/%s' % programcd)
 
+        shareimg = menu['program']['shareimg'].replace('_w640_h360', '_ori')
+        if shareimg not in metadata.art:
+          try: metadata.art[shareimg] = Proxy.Preview(HTTP.Request(shareimg), sort_order = len(metadata.art) + 1)
+          except Exception, e: Log(str(e))
+
         # http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?...
         vods = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?offset=%d&limit=%d&sort=new&search=&cliptype=&subcategory=&programid=%s&absolute_show=Y&mdadiv=01&viewcount=Y' %
             ( 0, 2000, menu['program']['channelid'] + '_V' + menu['program']['programid'][-10:] ), max_size = JSON_MAX_SIZE)
@@ -502,6 +517,16 @@ def updateDaumTV(metadata, media):
         # http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=c2cc5a&source=2tv&sname=enter&stype=gagcon&page_type=list
         menu = JSON.ObjectFromURL('http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=%s&source=%s&sname=%s&stype=%s&page_type=list' %
             ( smenu, source, sname, stype ))
+
+        image_h = menu['data']['site']['meta']['image_h']
+        if image_h not in metadata.posters:
+          try: metadata.posters[image_h] = Proxy.Preview(HTTP.Request(image_h), sort_order = len(metadata.posters) + 1)
+          except Exception, e: Log(str(e))
+
+        image_v = menu['data']['site']['meta']['image_w']
+        if image_v not in metadata.art:
+          try: metadata.art[image_v] = Proxy.Preview(HTTP.Request(image_v), sort_order = len(metadata.art) + 1)
+          except Exception, e: Log(str(e))
 
         page = 1
         while True:
