@@ -98,7 +98,7 @@ def searchDaumTV(results, media, lang):
   except: pass
 
   # TV검색 > 시리즈
-  more_a = tvp.xpath(u'//span[.="시리즈 더보기"]/parent::a')
+  more_a = tvp.xpath(u'//a[span[.="시리즈 더보기"]]')
   if more_a:
     html = HTML.ElementFromURL('https://search.daum.net/search%s' % more_a[0].get('href'))
     for li in html.xpath('//div[@id="series"]//li'):
@@ -384,20 +384,20 @@ def updateDaumTV(metadata, media):
 
   # (4) from episode page
   for a in html.xpath('//ul[@id="clipDateList"]/li/a'):
-    date = a.xpath('./parent::li/@data-clip')[0]
     season_num = '1'
     episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
+    episode_date = Datetime.ParseDate(a.xpath('./parent::li/@data-clip')[0], '%Y%m%d').date()
     if not episode_num: continue    # 시청지도서
-    date_based_season_num = date[:4]
-    date_based_episode_num = '%s-%s-%s' % (date[:4], date[4:6], date[6:])
+    date_based_season_num = episode_date.year
+    date_based_episode_num = episode_date.strftime('%Y-%m-%d')
     if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
         (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
       page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
       episode = metadata.seasons[season_num].episodes[episode_num]
       subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
       episode.summary = '\n'.join(txt.strip() for txt in page.xpath('//p[@class="episode_desc"]/text()')).strip()
-      episode.originally_available_at = Datetime.ParseDate(date, '%Y%m%d').date()
-      episode.title = subtitle[0] if subtitle else episode.originally_available_at.strftime('%Y-%m-%d')
+      episode.originally_available_at = episode_date
+      episode.title = subtitle[0] if subtitle else date_based_episode_num
       episode.rating = None
 
       if directors:
@@ -430,9 +430,9 @@ def updateDaumTV(metadata, media):
   # TV검색 > TV정보 > 다시보기
   vod = html.xpath(u'//a[span[contains(.,"다시보기")]]/@href')
   if vod:
-    prog_codes = []
     if 'www.imbc.com' in vod[0]:
       try:
+        prog_codes = []
         # http://www.imbc.com/broad/tv/ent/challenge/vod/index.html
         page = HTML.ElementFromURL(vod[0])
         prog_codes.append(Regex('var progCode = "(.*?)";').search(page.xpath('//script[contains(.,"var progCode = ")]/text()')[0]).group(1))
@@ -449,25 +449,28 @@ def updateDaumTV(metadata, media):
                 % (prog_code, year)).content, 'euc-kr')
             bcasts = JSON.ObjectFromString(Regex('jQuery1123011760857070017172_1538059867383\((.*)\)$').search(page).group(1))
             for bcast in bcasts:
-              if u'특집' in bcast['ContentNumber'] or u'스페셜' in bcast['ContentNumber']:   # 특집05회, 특집회, 추석특집회, 스페셜회
-                # Log('ignoring %s' % bcast['ContentNumber'])
-                continue
+              # if u'특집' in bcast['ContentNumber'] or u'스페셜' in bcast['ContentNumber']:   # 특집05회, 특집회, 추석특집회, 스페셜회
+              #   # Log('ignoring %s' % bcast['ContentNumber'])
+              #   continue
               season_num = '1'
-              episode_num = bcast['ContentNumber'][:-1]
-              date_based_season_num = bcast['BroadDate'][:4]
-              date_based_episode_num = bcast['BroadDate']     # 2018-09-25
-              if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-                  (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-                episode = metadata.seasons[season_num].episodes[episode_num]
-                if episode.summary:
-                  continue
-                page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_json.aspx?kind=image&progCode=%s&callback=jQuery111104041909438012061_1538031601249&_=1538031601252'
-                    % bcast['BroadCastID']).content, 'euc-kr')
-                info = JSON.ObjectFromString(Regex('jQuery111104041909438012061_1538031601249\((.*)\)$').search(page).group(1))[0]
-                episode.summary = info['Content'].replace('\r\n', '\n').replace('<br><br>', '\n').replace('<br>', '').strip()
-                episode.originally_available_at = Datetime.ParseDate(info['BroadDate'], '%Y-%m-%d').date()
-                episode.title = info['Title']
-                episode.rating = None
+              episode_date = Datetime.ParseDate(bcast['BroadDate'], '%Y-%m-%d').date()
+              match = Regex(u'^(\d+(-\d+)?)회$').search(bcast['ContentNumber'])  # 7-8회, 1회
+              if match:
+                for episode_num in match.group(1).split('-'):
+                  date_based_season_num = episode_date.year
+                  date_based_episode_num = episode_date.strftime('%Y-%m-%d')
+                  if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+                      (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+                    episode = metadata.seasons[season_num].episodes[episode_num]
+                    if episode.summary:
+                      continue
+                    page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_json.aspx?kind=image&progCode=%s&callback=jQuery111104041909438012061_1538031601249&_=1538031601252'
+                        % bcast['BroadCastID']).content, 'euc-kr')
+                    info = JSON.ObjectFromString(Regex('jQuery111104041909438012061_1538031601249\((.*)\)$').search(page).group(1))[0]
+                    episode.summary = info['Content'].replace('\r\n', '\n').replace('<br><br>', '\n').replace('<br>', '').strip()
+                    episode.originally_available_at = episode_date
+                    episode.title = info['Title']
+                    episode.rating = None
       except Exception, e:
         Log.Debug(repr(e))
         pass
@@ -493,18 +496,26 @@ def updateDaumTV(metadata, media):
           if v['content']['cornerid'] != 0: # 스페셜
             continue
           season_num = '1'
-          episode_num = v['content']['contentnumber']
-          date_based_season_num = v['broaddate'][:4]
-          date_based_episode_num = v['broaddate'][:10]     # 2018-09-28
-          if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-              (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-            episode = metadata.seasons[season_num].episodes[episode_num]
-            if episode.summary:
-              continue
-            episode.summary = String.DecodeHTMLEntities(String.StripTags(v['synopsis'])).strip()
-            episode.originally_available_at = Datetime.ParseDate(v['broaddate'], '%Y-%m-%d').date()   # fix TZ
-            episode.title = v['content']['contenttitle'].strip()
-            episode.rating = None
+          episode_date = Datetime.ParseDate(v['broaddate'], '%Y-%m-%d').date()   # fix TZ
+          episode_nums = []
+          match = Regex(u'^\[(\d+)&(\d+)회차 통합본\]').search(v['synopsis'])
+          if match:
+            episode_nums.append(match.group(1))
+            episode_nums.append(match.group(2))
+          else:
+            episode_nums.append(v['content']['contentnumber'])
+          for episode_num in episode_nums:
+            date_based_season_num = episode_date.year
+            date_based_episode_num = episode_date.strftime('%Y-%m-%d')
+            if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+                (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+              episode = metadata.seasons[season_num].episodes[episode_num]
+              if episode.summary:
+                continue
+              episode.summary = String.DecodeHTMLEntities(String.StripTags(v['synopsis'])).strip()
+              episode.originally_available_at = episode_date
+              episode.title = v['content']['contenttitle'].strip()
+              episode.rating = None
       except Exception, e:
         Log.Debug(repr(e))
         pass
@@ -523,9 +534,9 @@ def updateDaumTV(metadata, media):
           try: metadata.posters[image_h] = Proxy.Preview(HTTP.Request(image_h), sort_order = len(metadata.posters) + 1)
           except Exception, e: Log(str(e))
 
-        image_v = menu['data']['site']['meta']['image_w']
-        if image_v not in metadata.art:
-          try: metadata.art[image_v] = Proxy.Preview(HTTP.Request(image_v), sort_order = len(metadata.art) + 1)
+        image_w = menu['data']['site']['meta']['image_w']
+        if image_w not in metadata.art:
+          try: metadata.art[image_w] = Proxy.Preview(HTTP.Request(image_w), sort_order = len(metadata.art) + 1)
           except Exception, e: Log(str(e))
 
         page = 1
@@ -541,9 +552,9 @@ def updateDaumTV(metadata, media):
             # Log('%s %s %s' % (v['program_date'], v['program_number'], v['program_subtitle'] or v['description']))
             if not v['program_number']:
               continue
-            episode_date = Datetime.ParseDate(v['program_date'], '%Y%m%d').date()
             season_num = '1'
             episode_num = v['program_number']
+            episode_date = Datetime.ParseDate(v['program_date'], '%Y%m%d').date()
             date_based_season_num = episode_date.year
             date_based_episode_num = episode_date.strftime('%Y-%m-%d')
             if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
@@ -554,7 +565,7 @@ def updateDaumTV(metadata, media):
               episode.summary = v['program_summary']
               episode.originally_available_at = episode_date
               episode.title = v['program_subtitle'] or v['description'] or date_based_episode_num
-              episode.rating = None
+              episode.rating = None     # float(v['avg_rating'])
 
           page += 1
           if page > res['page_count']:
