@@ -462,7 +462,7 @@ def updateDaumTV(metadata, media):
                   if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
                       (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
                     episode = metadata.seasons[season_num].episodes[episode_num]
-                    if episode.summary:
+                    if episode.summary and u'회차정보가 없습니다' not in episode.summary:
                       continue
                     page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_json.aspx?kind=image&progCode=%s&callback=jQuery111104041909438012061_1538031601249&_=1538031601252'
                         % bcast['BroadCastID']).content, 'euc-kr')
@@ -510,7 +510,7 @@ def updateDaumTV(metadata, media):
             if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
                 (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
               episode = metadata.seasons[season_num].episodes[episode_num]
-              if episode.summary:
+              if episode.summary and u'회차정보가 없습니다' not in episode.summary:
                 continue
               episode.summary = String.DecodeHTMLEntities(String.StripTags(v['synopsis'])).strip()
               episode.originally_available_at = episode_date
