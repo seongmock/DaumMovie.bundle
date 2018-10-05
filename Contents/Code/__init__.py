@@ -430,11 +430,22 @@ def updateDaumTV(metadata, media):
   # TV검색 > TV정보 > 다시보기
   vod = html.xpath(u'//a[span[contains(.,"다시보기")]]/@href')
   if vod:
-    if 'www.imbc.com' in vod[0]:
+    replay_url = vod[0]
+  else:
+    if home and 'program.kbs.co.kr' in home[0]:
+      # 카카오VOD > http://program.kbs.co.kr/2tv/drama/dramaspecial2018/pc/list.html?smenu=c2cc5a
+      replay_url = home[0] + 'list.html?smenu=c2cc5a'
+    else:
+      replay_url = None
+      if Regex('MBC|SBS|KBS').match(metadata.studio):
+        Log.Debug('No replay URL for [%s] %s' % (metadata.studio, metadata.title))
+
+  if replay_url:
+    if 'www.imbc.com' in replay_url:
       try:
         prog_codes = []
         # http://www.imbc.com/broad/tv/ent/challenge/vod/index.html
-        page = HTML.ElementFromURL(vod[0])
+        page = HTML.ElementFromURL(replay_url)
         prog_codes.append(Regex('var progCode = "(.*?)";').search(page.xpath('//script[contains(.,"var progCode = ")]/text()')[0]).group(1))
         # for season_vod in page.xpath('//map[@name="vod"]/area/@href'):
         #   # http://www.imbc.com/broad/tv/ent/challenge/vod1/
@@ -475,10 +486,10 @@ def updateDaumTV(metadata, media):
         Log.Debug(repr(e))
         pass
 
-    elif 'programs.sbs.co.kr' in vod[0]:
+    elif 'programs.sbs.co.kr' in replay_url:
       try:
         # http://programs.sbs.co.kr/enter/jungle/vods/50479
-        programcd, mnuid = Regex('http://programs\.sbs\.co\.kr/(.+?)/(.+?)/vods/(.+)$').search(vod[0]).group(2, 3)
+        programcd, mnuid = Regex('http://programs\.sbs\.co\.kr/(.+?)/(.+?)/vods/(.+)$').search(replay_url).group(2, 3)
 
         # http://static.apis.sbs.co.kr/program-api/1.0/menu/jungle
         menu = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/program-api/1.0/menu/%s' % programcd)
@@ -520,10 +531,10 @@ def updateDaumTV(metadata, media):
         Log.Debug(repr(e))
         pass
 
-    elif 'program.kbs.co.kr' in vod[0]:
+    elif 'program.kbs.co.kr' in replay_url:
       try:
         # http://program.kbs.co.kr/2tv/enter/gagcon/pc/list.html?smenu=c2cc5a
-        source, sname, stype, smenu = Regex('program.kbs.co.kr/(.+?)/(.+?)/(.+?)/pc/list.html\?smenu=(.+)$').search(vod[0]).group(1, 2, 3, 4)
+        source, sname, stype, smenu = Regex('program.kbs.co.kr/(.+?)/(.+?)/(.+?)/pc/list.html\?smenu=(.+)$').search(replay_url).group(1, 2, 3, 4)
 
         # http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=c2cc5a&source=2tv&sname=enter&stype=gagcon&page_type=list
         menu = JSON.ObjectFromURL('http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=%s&source=%s&sname=%s&stype=%s&page_type=list' %
@@ -576,7 +587,7 @@ def updateDaumTV(metadata, media):
         pass
 
     else:
-      Log(vod[0])
+      Log(replay_url)
 
   #   # (5) fill missing info
   #   # if Prefs['override_tv_id'] != 'None':
