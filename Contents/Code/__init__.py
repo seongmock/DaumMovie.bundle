@@ -586,6 +586,58 @@ def updateDaumTV(metadata, media):
         Log.Debug(repr(e))
         pass
 
+    elif 'home.ebs.co.kr' in replay_url:
+      try:
+        # http://home.ebs.co.kr/bestdoctors/review
+        #  => http://home.ebs.co.kr/bestdoctors/replay/1/list;jsessionid=...?courseId=BP0PAPG0000000014&stepId=01BP0PAPG0000000014
+        # http://home.ebs.co.kr/baddog/replay/24/list?courseId=10016245&stepId=10035139
+        match = Regex('courseId=(.+)&stepId=(.+)').search(replay_url)
+        if match:
+          courseId, stepId = match.group(1, 2)
+          page = 1
+          while True:
+            html = HTML.ElementFromURL('http://www.ebs.co.kr/tv/show/vodListNew', values={
+                'courseId': courseId,
+                'stepId': stepId,
+                'lectId': '666',    # '10962899',
+                'vodStepNm': '',    # '세상에 나쁜 개는 없다 시즌3',
+                # 'srchType': '',
+                # 'srchText': '',
+                # 'srchYear': '',
+                # 'srchMonth': '',
+                'pageNum': page,
+                # 'vodProdId': ''
+            }, sleep = 0.5)
+            for a in html.xpath('//ul[@class="_playList"]/li//a'):
+              season_num = '1'
+              episode_date = Datetime.ParseDate(a.xpath('./span[@class="date"]')[0].text, '%Y.%m.%d').date()
+              match = Regex(u'^(\d+)회').search(a.text.strip())
+              if match:
+                episode_num = match.group(1)
+              else:
+                episode_num = episode_date.strftime('%y%m%d')
+              date_based_season_num = episode_date.year
+              date_based_episode_num = episode_date.strftime('%Y-%m-%d')
+              if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+                  (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+                episode = metadata.seasons[season_num].episodes[episode_num]
+                if episode.summary and u'회차정보가 없습니다' not in episode.summary:
+                  continue
+                # Log('E: S%s E%s %s %s' % (season_num, episode_num, episode_date, a.text.strip()))
+                show = HTML.ElementFromURL('http://www.ebs.co.kr/tv/show?prodId=&lectId=%s' % Regex('selVodList\(\'(\d+?)\'').search(a.get('href')).group(1), sleep = 0.5)
+                episode.summary = show.xpath('//p[@class="detail_story"]')[0].text.strip()
+                episode.originally_available_at = episode_date
+                episode.title = a.text.strip() or date_based_episode_num
+                episode.rating = None
+
+            page += 1
+            if page > min(20, int(''.join(html.xpath('//span[@class="pro_vod_page"]//text()')).strip().split(' / ')[1])):
+              break
+
+      except Exception, e:
+        Log.Debug(repr(e))
+        pass
+
     else:
       Log(replay_url)
 
