@@ -32,5 +32,11 @@
     "label": "Use MPAA film rating system",
     "type": "bool",
     "default": "false"
+  },
+  {
+    "id": "use_init_letter",
+    "label": "Use Convert initial letter sort",
+    "type": "bool",
+    "default": "false"
   }
 ]

@@ -314,7 +314,7 @@ def updateDaumTV(metadata, media):
   try:
     html = HTML.ElementFromURL(DAUM_TV_DETAIL % (urllib.quote(media.title.encode('utf8')), metadata.id))
     metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
-    metadata.title_sort = unicodedata.normalize('NFKD', metadata.title[0])[0] + ' ' + metadata.title
+    metadata.title_sort = ((unicodedata.normalize('NFKD', metadata.title[0])[0] + ' ') if Prefs['use_init_letter'] else '') + metadata.title
     metadata.original_title = ''
     metadata.rating = None
     metadata.genres.clear()
