@@ -11,6 +11,19 @@
 2. 드라마 ID 덮어쓰기
    - _None_: 다음영화 ID를 유지
    - _TVDB_: [TVDB](http://www.thetvdb.com) ID를 대신 넘겨줌. OpenSubtitles Agent와 연결에 필요.
+3. MPAA 영화 등급 사용
+   - [x] 미국영화협회(MPAA) 등급으로 변경해서 표시 (G, PG, PG-13, R, NC-17)
+   - [ ] 영상물등급위원회(KMRB) 등급 사용 (A, 12, 15, R, X) (default). [KMRB 등급 아이콘](https://www.dropbox.com/s/kbk4f0t7u6dpjoo/pms-content-rating-icons-kr.zip?dl=0)을 PLEX 어플리케이션 내에 설치하면 영화 등급이 아이콘으로 표시된다.
+4. 영화/드라마 제목을 초성 기준으로 색인
+   - [x] 초성 기준으로 색인 (ㄱㄴㄷ...ㅎ) (default)
+   - [ ] 음절 기준으로 색인 (가각간...힣)
+
+## KMRB 등급 아이콘 설치 위치
+OS | 설치 위치
+---|---
+macOS | `/Applications/Plex Media Server.app/Contents/Resources/Plug-ins-*********/Media-Flags.bundle/Contents/Resources/Content Rating`
+QNAP | `/share/CACHEDEV1_DATA/.qpkg/PlexMediaServer/Resources/Plug-ins-*********/Media-Flags.bundle/Contents/Resources/Content Rating`
+Synology | `/volume2/@appstore/Plex Media Server/Resources/Plug-ins-*********/Media-Flags.bundle/Contents/Resources/Content Rating`
 
 OpenSubtitles과의 연결
 ==============

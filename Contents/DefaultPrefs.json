@@ -34,9 +34,9 @@
     "default": "false"
   },
   {
-    "id": "use_init_letter",
-    "label": "Use Convert initial letter sort",
+    "id": "use_title_decomposition",
+    "label": "Index titles by decomposed Hangul syllables",
     "type": "bool",
-    "default": "false"
+    "default": "true"
   }
 ]
