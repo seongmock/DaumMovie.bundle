@@ -321,7 +321,7 @@ def updateDaumTV(metadata, media):
     # 드라마 (24부작)
     metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
     metadata.studio = html.xpath('//div[@class="txt_summary"]/span[1]')[0].text
-    match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(html.xpath('//div[@class="txt_summary"]/span[last()]')[0] or '')
+    match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(html.xpath('//div[@class="txt_summary"]/span[last()]')[0].text or '')
     if match:
       metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
     metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//dt[.="소개"]/following-sibling::dd')[0].text).strip())
