@@ -94,8 +94,8 @@ def searchDaumTV(results, media, lang):
   title = ''.join(tvp.xpath('//a[@class="tit_info"]/text()'))
   try:
     year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
-    items.append({ 'id': id, 'title': title, 'year': year })
-  except: pass
+  except: year = None
+  items.append({ 'id': id, 'title': title, 'year': year })
 
   # TV검색 > 시리즈
   more_a = tvp.xpath(u'//a[span[.="시리즈 더보기"]]')
@@ -321,7 +321,7 @@ def updateDaumTV(metadata, media):
     # 드라마 (24부작)
     metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
     metadata.studio = html.xpath('//div[@class="txt_summary"]/span[1]')[0].text
-    match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(html.xpath('//div[@class="txt_summary"]/span[3]')[0].text)
+    match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(html.xpath('//div[@class="txt_summary"]/span[last()]')[0] or '')
     if match:
       metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
     metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//dt[.="소개"]/following-sibling::dd')[0].text).strip())
@@ -386,7 +386,9 @@ def updateDaumTV(metadata, media):
   for a in html.xpath('//ul[@id="clipDateList"]/li/a'):
     season_num = '1'
     episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
-    episode_date = Datetime.ParseDate(a.xpath('./parent::li/@data-clip')[0], '%Y%m%d').date()
+    try:
+      episode_date = Datetime.ParseDate(a.xpath('./parent::li/@data-clip')[0], '%Y%m%d').date()
+    except: continue
     if not episode_num: continue    # 시청지도서
     date_based_season_num = episode_date.year
     date_based_episode_num = episode_date.strftime('%Y-%m-%d')
