@@ -491,7 +491,7 @@ def updateDaumTV(metadata, media):
     elif 'programs.sbs.co.kr' in replay_url:
       try:
         # http://programs.sbs.co.kr/enter/jungle/vods/50479
-        programcd, mnuid = Regex('http://programs\.sbs\.co\.kr/(.+?)/(.+?)/vods/(.+)$').search(replay_url).group(2, 3)
+        programcd, mnuid = Regex('programs\.sbs\.co\.kr/(.+?)/(.+?)/vods/(.+)$').search(replay_url).group(2, 3)
 
         # http://static.apis.sbs.co.kr/program-api/1.0/menu/jungle
         menu = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/program-api/1.0/menu/%s' % programcd)
