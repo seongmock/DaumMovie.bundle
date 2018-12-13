@@ -274,7 +274,7 @@ def updateDaumMovie(metadata):
       if not art_url: continue
       #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
       idx_poster += 1
-      try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail']), sort_order = idx_poster)
+      try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_poster)
       #try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_poster)
       except: pass
     elif item['photoCategory'] in ['2', '50'] and idx_art < max_art:
@@ -282,13 +282,13 @@ def updateDaumMovie(metadata):
       if not art_url: continue
       #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
       idx_art += 1
-      try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail']), sort_order = idx_art)
+      try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_art)
       #try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_art)
       except: pass
   Log.Debug('Total %d posters, %d artworks' %(idx_poster, idx_art))
   if idx_poster == 0:
     if poster_url:
-      poster = HTTP.Request( poster_url )
+      poster = HTTP.Request( poster_url, cacheTime=0 )
       try: metadata.posters[poster_url] = Proxy.Media(poster)
       except: pass
     # else:
@@ -329,7 +329,7 @@ def updateDaumTV(metadata, media):
     # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
     # poster_url = urlparse.parse_qs(urlparse.urlparse(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).query)['fname'][0]
     poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
-    metadata.posters[poster_url] = Proxy.Media(HTTP.Request(poster_url))
+    metadata.posters[poster_url] = Proxy.Media(HTTP.Request(poster_url, cacheTime=0))
   except Exception, e:
     Log.Debug(repr(e))
     pass
@@ -426,7 +426,7 @@ def updateDaumTV(metadata, media):
       page = HTML.ElementFromURL(home[0])
       for prv in page.xpath('//div[@class="roll-ban-event"]/ul/li/img/@src'):
         if prv not in metadata.art:
-          try: metadata.art[prv] = Proxy.Preview(HTTP.Request(prv), sort_order = len(metadata.art) + 1)
+          try: metadata.art[prv] = Proxy.Preview(HTTP.Request(prv, cacheTime=0), sort_order = len(metadata.art) + 1)
           except Exception, e: Log(str(e))
 
   # TV검색 > TV정보 > 다시보기
@@ -498,7 +498,7 @@ def updateDaumTV(metadata, media):
 
         shareimg = menu['program']['shareimg'].replace('_w640_h360', '_ori')
         if shareimg not in metadata.art:
-          try: metadata.art[shareimg] = Proxy.Preview(HTTP.Request(shareimg), sort_order = len(metadata.art) + 1)
+          try: metadata.art[shareimg] = Proxy.Preview(HTTP.Request(shareimg, cacheTime=0), sort_order = len(metadata.art) + 1)
           except Exception, e: Log(str(e))
 
         # http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?...
@@ -544,12 +544,12 @@ def updateDaumTV(metadata, media):
 
         image_h = menu['data']['site']['meta']['image_h']
         if image_h not in metadata.posters:
-          try: metadata.posters[image_h] = Proxy.Preview(HTTP.Request(image_h), sort_order = len(metadata.posters) + 1)
+          try: metadata.posters[image_h] = Proxy.Preview(HTTP.Request(image_h, cacheTime=0), sort_order = len(metadata.posters) + 1)
           except Exception, e: Log(str(e))
 
         image_w = menu['data']['site']['meta']['image_w']
         if image_w not in metadata.art:
-          try: metadata.art[image_w] = Proxy.Preview(HTTP.Request(image_w), sort_order = len(metadata.art) + 1)
+          try: metadata.art[image_w] = Proxy.Preview(HTTP.Request(image_w, cacheTime=0), sort_order = len(metadata.art) + 1)
           except Exception, e: Log(str(e))
 
         page = 1
