@@ -271,25 +271,20 @@ def updateDaumMovie(metadata):
   for item in data['data']:
     if item['photoCategory'] == '1' and idx_poster < max_poster:
       art_url = item['fullname']
-      if not art_url: continue
-      #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
-      idx_poster += 1
-      try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_poster)
-      #try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_poster)
-      except: pass
+      if art_url and art_url not in metadata.posters:
+        idx_poster += 1
+        try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_poster)
+        except: pass
     elif item['photoCategory'] in ['2', '50'] and idx_art < max_art:
       art_url = item['fullname']
-      if not art_url: continue
-      #art_url = RE_PHOTO_SIZE.sub("/image/", art_url)
-      idx_art += 1
-      try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_art)
-      #try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], None, { 'Referer': url_tmpl }), sort_order = idx_art)
-      except: pass
+      if art_url and art_url not in metadata.art:
+        idx_art += 1
+        try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_art)
+        except: pass
   Log.Debug('Total %d posters, %d artworks' %(idx_poster, idx_art))
   if idx_poster == 0:
-    if poster_url:
-      poster = HTTP.Request( poster_url, cacheTime=0 )
-      try: metadata.posters[poster_url] = Proxy.Media(poster)
+    if poster_url and poster_url not in metadata.posters:
+      try: metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = 1)
       except: pass
     # else:
     #   url = 'http://m.movie.daum.net/m/tv/main?tvProgramId=%s' % metadata.id
@@ -329,7 +324,8 @@ def updateDaumTV(metadata, media):
     # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
     # poster_url = urlparse.parse_qs(urlparse.urlparse(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).query)['fname'][0]
     poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
-    metadata.posters[poster_url] = Proxy.Media(HTTP.Request(poster_url, cacheTime=0))
+    if poster_url not in metadata.posters:
+      metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.posters) + 1)
   except Exception, e:
     Log.Debug(repr(e))
     pass
