@@ -10,7 +10,7 @@ DAUM_MOVIE_DETAIL = "http://movie.daum.net/moviedb/main?movieId=%s"
 DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?pageNo=1&pageSize=100&movieId=%s"
 DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
-DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s"
+DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=TVP"
 DAUM_TV_DETAIL    = "https://search.daum.net/search?w=tv&q=%s&irk=%s&irt=tv-program&DA=TVP"
 
 IMDB_TITLE_SRCH   = "http://www.google.com/search?q=site:imdb.com+%s"
