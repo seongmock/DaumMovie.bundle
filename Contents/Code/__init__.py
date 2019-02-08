@@ -3,7 +3,7 @@
 
 import urllib, unicodedata, os
 
-DAUM_MOVIE_SRCH   = "http://movie.daum.net/data/movie/search/v2/movie.json?size=20&start=1&searchText=%s"
+DAUM_MOVIE_SRCH   = "https://suggest-bar.daum.net/suggest?id=movie&cate=movie&multiple=1&mod=json&code=utf_in_out&q=%s"
 
 DAUM_MOVIE_DETAIL = "http://movie.daum.net/moviedb/main?movieId=%s"
 # DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
@@ -58,18 +58,14 @@ def searchDaumMovie(results, media, lang):
   Log.Debug("search: %s %s" %(media_name, media.year))
 
   data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (urllib.quote(media_name.encode('utf8'))))
-  items = data['data']
-  for item in items:
-    year = str(item['prodYear'])
-    title = String.DecodeHTMLEntities(String.StripTags(item['titleKo'])).strip()
-    id = str(item['movieId'])
-    if year == media.year:
-      score = 95
-    elif len(items) == 1:
-      score = 80
-    else:
+  for idx, item in enumerate(data['items']['movie']):
+    title, id, poster, year, r = item.split('|')
+    score = 80 - idx * 20
+    if media.year:
+      score += (2 - min(2, abs(int(media.year) - int(year)))) * 5
+    if score < 10:
       score = 10
-    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
+    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' % (id, media_name, title, year, score))
     results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
 
 def searchDaumTV(results, media, lang):
