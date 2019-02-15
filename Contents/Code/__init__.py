@@ -53,20 +53,24 @@ def Start():
 
 ####################################################################################################
 def searchDaumMovie(results, media, lang):
-  media_name = media.name
-  media_name = unicodedata.normalize('NFKC', unicode(media_name)).strip()
-  Log.Debug("search: %s %s" %(media_name, media.year))
-
-  data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (urllib.quote(media_name.encode('utf8'))))
-  for idx, item in enumerate(data['items']['movie']):
-    title, id, poster, year, r = item.split('|')
-    score = 80 - idx * 20
-    if media.year:
-      score += (2 - min(2, abs(int(media.year) - int(year)))) * 5
-    if score < 10:
-      score = 10
-    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' % (id, media_name, title, year, score))
-    results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
+  media_words = unicodedata.normalize('NFKC', unicode(media.name)).strip().split(' ')
+  while len(media_words) > 0:
+    media_name = ' '.join(media_words)
+    Log.Debug("search: %s %s" %(media_name, media.year))
+    data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (urllib.quote(media_name.encode('utf8'))))
+    items = data['items']['movie']
+    if len(items) > 0:
+      for idx, item in enumerate(items):
+        title, id, poster, year, r = item.split('|')
+        score = 80 - idx * 20
+        if media.year:
+          score += (2 - min(2, abs(int(media.year) - int(year)))) * 5
+        if score < 10:
+          score = 10
+        Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' % (id, media_name, title, year, score))
+        results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
+      break
+    media_words = media_words[:-1]
 
 def searchDaumTV(results, media, lang):
   media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
