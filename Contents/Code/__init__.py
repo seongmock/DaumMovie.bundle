@@ -185,6 +185,8 @@ def updateDaumMovie(metadata):
     # Log.Debug('oaa=%s, duration=%s, content_rating=%s' %(metadata.originally_available_at, metadata.duration, metadata.content_rating))
     metadata.summary = '\n'.join(txt.strip() for txt in html.xpath('//div[@class="desc_movie"]/p//text()'))
     poster_url = html.xpath('//img[@class="img_summary"]/@src')[0]
+    if poster_url.startswith('//'):
+      poster_url = 'https:' + poster_url
   except Exception, e:
     Log.Debug(repr(e))
     pass
@@ -266,43 +268,28 @@ def updateDaumMovie(metadata):
   data = JSON.ObjectFromURL(url=url_tmpl % metadata.id)
   max_poster = int(Prefs['max_num_posters'])
   max_art = int(Prefs['max_num_arts'])
-  idx_poster = 0
-  idx_art = 0
+  idx_poster = len(metadata.posters)
+  idx_art = len(metadata.art)
   for item in data['data']:
     if item['photoCategory'] == '1' and idx_poster < max_poster:
       art_url = item['fullname']
       if art_url and art_url not in metadata.posters:
-        idx_poster += 1
-        try: metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_poster)
-        except: pass
+        try:
+          metadata.posters[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_poster + 1)
+          idx_poster += 1
+        except Exception, e: Log(str(e))
     elif item['photoCategory'] in ['2', '50'] and idx_art < max_art:
       art_url = item['fullname']
       if art_url and art_url not in metadata.art:
-        idx_art += 1
-        try: metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_art)
-        except: pass
+        try:
+          metadata.art[art_url] = Proxy.Preview(HTTP.Request(item['thumbnail'], cacheTime=0), sort_order = idx_art + 1)
+          idx_art += 1
+        except Exception, e: Log(str(e))
   Log.Debug('Total %d posters, %d artworks' %(idx_poster, idx_art))
   if idx_poster == 0:
     if poster_url and poster_url not in metadata.posters:
       try: metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = 1)
-      except: pass
-    # else:
-    #   url = 'http://m.movie.daum.net/m/tv/main?tvProgramId=%s' % metadata.id
-    #   html = HTML.ElementFromURL( url )
-    #   arts = html.xpath('//img[@class="thumb_program"]')
-    #   for art in arts:
-    #     art_url = art.attrib['src']
-    #     if not art_url: continue
-    #     art = HTTP.Request( art_url )
-    #     idx_poster += 1
-    #     metadata.posters[art_url] = Proxy.Preview(art, sort_order = idx_poster)
-
-    # (5) fill missing info
-    # if Prefs['override_tv_id'] != 'None':
-    #   page = HTTP.Request(DAUM_TV_DETAIL2 % metadata.id).content
-    #   match = Regex('<em class="title_AKA"> *<span class="eng">([^<]*)</span>').search(page)
-    #   if match:
-    #     metadata.original_title = match.group(1).strip()
+      except Exception, e: Log(str(e))
 
 def updateDaumTV(metadata, media):
   # (1) from detail page
