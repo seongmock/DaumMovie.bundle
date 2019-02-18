@@ -62,11 +62,12 @@ def searchDaumMovie(results, media, lang):
     if len(items) > 0:
       for idx, item in enumerate(items):
         title, id, poster, year, r = item.split('|')
-        score = 80 - idx * 20
+        if media_name in title:
+          score = 80 - min(15, len(title) - len(media_name)) * 5
+        else:
+          score = 80 - min(5, idx) * 15
         if media.year:
           score += (2 - min(2, abs(int(media.year) - int(year)))) * 5
-        if score < 10:
-          score = 10
         Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' % (id, media_name, title, year, score))
         results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
       break
