@@ -303,10 +303,12 @@ def updateDaumTV(metadata, media):
     metadata.genres.clear()
     # 드라마 (24부작)
     metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
-    metadata.studio = html.xpath('//div[@class="txt_summary"]/span[1]')[0].text
-    match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(html.xpath('//div[@class="txt_summary"]/span[last()]')[0].text or '')
-    if match:
-      metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
+    spans = html.xpath('//div[@class="txt_summary"]/span')
+    if spans:
+      metadata.studio = spans[0].text
+      match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(spans[-1].text or '')
+      if match:
+        metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
     metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//dt[.="소개"]/following-sibling::dd')[0].text).strip())
 
     # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
@@ -423,7 +425,7 @@ def updateDaumTV(metadata, media):
       replay_url = home[0] + 'list.html?smenu=c2cc5a'
     else:
       replay_url = None
-      if Regex('MBC|SBS|KBS').match(metadata.studio):
+      if metadata.studio and Regex('MBC|SBS|KBS|EBS').match(metadata.studio):
         Log.Debug('No replay URL for [%s] %s' % (metadata.studio, metadata.title))
 
   if replay_url:
