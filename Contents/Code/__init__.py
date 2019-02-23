@@ -11,7 +11,7 @@ DAUM_MOVIE_CAST   = "http://movie.daum.net/data/movie/movie_info/cast_crew.json?
 DAUM_MOVIE_PHOTO  = "http://movie.daum.net/data/movie/photo/movie/list.json?pageNo=1&pageSize=100&id=%s"
 
 DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=TVP"
-DAUM_TV_DETAIL    = "https://search.daum.net/search?w=tv&q=%s&irk=%s&irt=tv-program&DA=TVP"
+DAUM_TV_DETAIL    = "https://search.daum.net/search?w=%s&q=%s&irk=%s&irt=tv-program&DA=TVP"
 
 IMDB_TITLE_SRCH   = "http://www.google.com/search?q=site:imdb.com+%s"
 TVDB_TITLE_SRCH   = "http://thetvdb.com/api/GetSeries.php?seriesname=%s"
@@ -295,7 +295,7 @@ def updateDaumMovie(metadata):
 def updateDaumTV(metadata, media):
   # (1) from detail page
   try:
-    html = HTML.ElementFromURL(DAUM_TV_DETAIL % (urllib.quote(media.title.encode('utf8')), metadata.id))
+    html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id))
     metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
     metadata.original_title = ''
@@ -304,6 +304,9 @@ def updateDaumTV(metadata, media):
     # 드라마 (24부작)
     metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
     spans = html.xpath('//div[@class="txt_summary"]/span')
+    if not spans:
+      tot = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tot', urllib.quote(media.title.encode('utf8')), metadata.id))
+      spans = tot.xpath('//div[@class="summary_info"]/*[@class="txt_summary"]')
     if spans:
       metadata.studio = spans[0].text
       match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(spans[-1].text or '')
@@ -483,6 +486,8 @@ def updateDaumTV(metadata, media):
         menu = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/program-api/1.0/menu/%s' % programcd)
 
         shareimg = menu['program']['shareimg'].replace('_w640_h360', '_ori')
+        if shareimg.startswith('//'):
+          shareimg = 'http:' + shareimg
         if shareimg not in metadata.art:
           try: metadata.art[shareimg] = Proxy.Preview(HTTP.Request(shareimg, cacheTime=0), sort_order = len(metadata.art) + 1)
           except Exception, e: Log(str(e))
