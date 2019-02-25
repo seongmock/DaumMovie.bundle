@@ -38,5 +38,11 @@
     "label": "Index titles by decomposed Hangul syllables",
     "type": "bool",
     "default": "true"
+  },
+  {
+    "id": "use_https_for_image",
+    "label": "Use https for image download",
+    "type": "bool",
+    "default": "false"
   }
 ]
