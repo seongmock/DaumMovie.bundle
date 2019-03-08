@@ -3,7 +3,7 @@
 
 import urllib, unicodedata, os
 
-DAUM_MOVIE_SRCH   = "https://suggest-bar.daum.net/suggest?id=movie&cate=movie&multiple=1&mod=json&code=utf_in_out&q=%s"
+DAUM_MOVIE_SRCH   = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=EM1"
 
 DAUM_MOVIE_DETAIL = "http://movie.daum.net/moviedb/main?movieId=%s"
 # DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
@@ -72,27 +72,50 @@ def downloadImage(url, fetchContent=True):
 
   return result
 
+def levenshteinRatio(first, second):
+  return 1 - (Util.LevenshteinDistance(first, second) / float(max(len(first), len(second))))
+
 ####################################################################################################
 def searchDaumMovie(results, media, lang):
   media_words = unicodedata.normalize('NFKC', unicode(media.name)).strip().split(' ')
   while len(media_words) > 0:
     media_name = ' '.join(media_words)
     Log.Debug("search: %s %s" %(media_name, media.year))
-    data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (urllib.quote(media_name.encode('utf8'))))
-    items = data['items']['movie']
-    if len(items) > 0:
-      for idx, item in enumerate(items):
-        title, id, poster, year, r = item.split('|')
-        if media_name in title:
-          score = 80 - min(15, len(title) - len(media_name)) * 5
-        else:
-          score = 80 - min(5, idx) * 15
-        if media.year:
-          score += (2 - min(2, abs(int(media.year) - int(year)))) * 5
-        Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' % (id, media_name, title, year, score))
+    html = HTML.ElementFromURL(DAUM_MOVIE_SRCH % urllib.quote(media_name.encode('utf8')))
+    try:
+      movieEColl = html.xpath('//div[@id="movieEColl"]')[0]
+      ids = []
+
+      # 영화검색
+      ids.append(Regex('movieId=(\d+)').search(movieEColl.xpath('//div[@id="movieTitle"]/a/@href')[0]).group(1))
+
+      # 영화검색 > 시리즈
+      for a in movieEColl.xpath('//div[contains(@class,"type_series")]//li/div[@class="wrap_cont"]/a'):
+        ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
+
+      # 영화검색 > 동명영화
+      for a in movieEColl.xpath('//div[@class="coll_etc"]//a'):
+        ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
+
+      for id in ids:
+        html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % id)
+        title, year = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text).group(1, 2)
+        original_title = html.xpath('//span[@class="txt_movie"]')[0].text
+        score = int(max(levenshteinRatio(media_name, title), levenshteinRatio(media_name, original_title)) * 80)
+        if media.year and year:
+          score += (2 - min(2, abs(int(media.year) - int(year)))) * 10
+        # countries = html.xpath('//dl[contains(@class, "list_movie")]/dd')[1].text
+        # if u'한국' not in countries:
+        #   title += ' (' + original_title + ')'
+        Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
         results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
-      break
+
+      return
+
+    except: pass
     media_words = media_words[:-1]
+
+  Log.Debug('No movie matches found')
 
 def searchDaumTV(results, media, lang):
   media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
@@ -165,11 +188,10 @@ def updateDaumMovie(metadata):
 
   try:
     html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % metadata.id)
-    title = html.xpath('//div[@class="subject_movie"]/strong')[0].text
-    match = Regex('(.*?) \((\d{4})\)').search(title)
+    match = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text)
     metadata.title = match.group(1)
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
-    metadata.year = int(match.group(2))
+    metadata.year = match.group(2)
     metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
     metadata.rating = float(html.xpath('//em[@class="emph_grade"]')[0].text)
     # 장르
