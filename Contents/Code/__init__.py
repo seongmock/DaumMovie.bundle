@@ -87,25 +87,25 @@ def searchDaumMovie(results, media, lang):
       ids = []
 
       # 영화검색
-      ids.append(Regex('movieId=(\d+)').search(movieEColl.xpath('//div[@id="movieTitle"]/a/@href')[0]).group(1))
+      ids.append(Regex('movieId=(\d+)').search(movieEColl.xpath('.//div[@id="movieTitle"]/a/@href')[0]).group(1))
 
       # 영화검색 > 시리즈
-      for a in movieEColl.xpath('//div[contains(@class,"type_series")]//li/div[@class="wrap_cont"]/a'):
+      for a in movieEColl.xpath('.//div[contains(@class,"type_series")]//li/div[@class="wrap_cont"]/a'):
         ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
 
       # 영화검색 > 동명영화
-      for a in movieEColl.xpath('//div[@class="coll_etc"]//a'):
+      for a in movieEColl.xpath('.//div[@class="coll_etc"]//a'):
         ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
 
       for id in ids:
         html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % id)
         title, year = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text).group(1, 2)
-        original_title = html.xpath('//span[@class="txt_movie"]')[0].text
+        original_title = html.xpath('//span[@class="txt_movie"]')[0].text or ''
         score = int(max(levenshteinRatio(media_name, title), levenshteinRatio(media_name, original_title)) * 80)
         if media.year and year:
           score += (2 - min(2, abs(int(media.year) - int(year)))) * 10
         # countries = html.xpath('//dl[contains(@class, "list_movie")]/dd')[1].text
-        # if u'한국' not in countries:
+        # if u'한국' not in countries and original_title:
         #   title += ' (' + original_title + ')'
         Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
         results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
@@ -191,18 +191,18 @@ def updateDaumMovie(metadata):
     match = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text)
     metadata.title = match.group(1)
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
-    metadata.year = match.group(2)
+    metadata.year = int(match.group(2)) if match.group(2) else None
     metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
     metadata.rating = float(html.xpath('//em[@class="emph_grade"]')[0].text)
     # 장르
     metadata.genres.clear()
     dds = html.xpath('//dl[contains(@class, "list_movie")]/dd')
     for genre in dds.pop(0).text.split('/'):
-        metadata.genres.add(genre)
+      metadata.genres.add(genre)
     # 나라
     metadata.countries.clear()
     for country in dds.pop(0).text.split(','):
-        metadata.countries.add(country.strip())
+      metadata.countries.add(country.strip())
     # 개봉일 (optional)
     match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*개봉').search(dds[0].text)
     if match:
