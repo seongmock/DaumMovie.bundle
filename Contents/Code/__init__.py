@@ -3,7 +3,8 @@
 
 import urllib, unicodedata, os
 
-DAUM_MOVIE_SRCH   = "https://suggest-bar.daum.net/suggest?id=movie&cate=movie&multiple=1&mod=json&code=utf_in_out&q=%s"
+DAUM_MOVIE_SRCH   = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=EM1"
+DAUM_MOVIE_SGST   = "https://suggest-bar.daum.net/suggest?id=movie&cate=movie&multiple=1&mod=json&code=utf_in_out&q=%s"
 
 DAUM_MOVIE_DETAIL = "http://movie.daum.net/moviedb/main?movieId=%s"
 # DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
@@ -72,27 +73,73 @@ def downloadImage(url, fetchContent=True):
 
   return result
 
+def levenshteinRatio(first, second):
+  return 1 - (Util.LevenshteinDistance(first, second) / float(max(len(first), len(second))))
+
+def containsHangul(text):
+  # return any(ord(c) >= 44032 and ord(c) <= 55203 for c in text)
+  for c in list(text):
+    if ord(c) >= 44032 and ord(c) <= 55203:
+      return True
+  return False
+
 ####################################################################################################
 def searchDaumMovie(results, media, lang):
-  media_words = unicodedata.normalize('NFKC', unicode(media.name)).strip().split(' ')
-  while len(media_words) > 0:
+  media_ids = []
+
+  # 영화 검색 (메인)
+  media_name = unicodedata.normalize('NFKC', unicode(media.name)).strip()
+  media_words = media_name.split(' ') if containsHangul(media_name) else [ media_name ]
+  while media_words:
     media_name = ' '.join(media_words)
     Log.Debug("search: %s %s" %(media_name, media.year))
-    data = JSON.ObjectFromURL(url=DAUM_MOVIE_SRCH % (urllib.quote(media_name.encode('utf8'))))
-    items = data['items']['movie']
-    if len(items) > 0:
-      for idx, item in enumerate(items):
-        title, id, poster, year, r = item.split('|')
-        if media_name in title:
-          score = 80 - min(15, len(title) - len(media_name)) * 5
-        else:
-          score = 80 - min(5, idx) * 15
-        if media.year:
-          score += (2 - min(2, abs(int(media.year) - int(year)))) * 5
-        Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' % (id, media_name, title, year, score))
-        results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
+    html = HTML.ElementFromURL(DAUM_MOVIE_SRCH % urllib.quote(media_name.encode('utf8')))
+    movieEColl = html.xpath('//div[@id="movieEColl"]')
+    if movieEColl:
+      try:
+        media_ids.append(Regex('movieId=(\d+)').search(movieEColl[0].xpath('.//div[@id="movieTitle"]/a/@href')[0]).group(1))
+        # 영화검색 > 시리즈
+        for a in movieEColl[0].xpath('.//div[contains(@class,"type_series")]//li/div[@class="wrap_cont"]/a'):
+          media_ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
+        # 영화검색 > 동명영화
+        for a in movieEColl[0].xpath('.//div[@class="coll_etc"]//a'):
+          media_ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
+      except Exception, e: Log(str(e))
       break
-    media_words = media_words[:-1]
+    if containsHangul(media_words.pop()):
+      break
+
+  if not media_ids:
+    # 영화 검색 (자동완성)
+    media_name = unicodedata.normalize('NFKC', unicode(media.name)).strip()
+    media_words = media_name.split(' ') if containsHangul(media_name) else [ media_name ]
+    while media_words:
+      media_name = ' '.join(media_words)
+      Log.Debug("search: %s %s" %(media_name, media.year))
+      data = JSON.ObjectFromURL(url=DAUM_MOVIE_SGST % (urllib.quote(media_name.encode('utf8'))))
+      items = data['items']['movie']
+      if items:
+        media_ids = [ item.split('|')[1] for item in items]
+        break
+      if containsHangul(media_words.pop()):
+        break
+
+  if not media_ids:
+    Log.Debug('No movie matches found')
+    return
+
+  for id in media_ids:
+    html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % id)
+    title, year = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text).group(1, 2)
+    original_title = html.xpath('//span[@class="txt_movie"]')[0].text or ''
+    score = int(max(levenshteinRatio(media_name, title), levenshteinRatio(media_name, original_title)) * 80)
+    if media.year and year:
+      score += (2 - min(2, abs(int(media.year) - int(year)))) * 10
+    # countries = html.xpath('//dl[contains(@class, "list_movie")]/dd')[1].text
+    # if u'한국' not in countries and original_title:
+    #   title += ' (' + original_title + ')'
+    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
+    results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
 
 def searchDaumTV(results, media, lang):
   media_name = unicodedata.normalize('NFKC', unicode(media.show)).strip()
@@ -144,7 +191,9 @@ def searchDaumTV(results, media, lang):
   # TV검색 > 동명 콘텐츠
   spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
   for span in spans:
-    year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
+    try:
+      year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
+    except: year = None
     a = span.xpath('./preceding-sibling::a[1]')[0]
     id = Regex('irk=(\d+)').search(a.get('href')).group(1)
     title = a.text.strip()
@@ -165,22 +214,21 @@ def updateDaumMovie(metadata):
 
   try:
     html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % metadata.id)
-    title = html.xpath('//div[@class="subject_movie"]/strong')[0].text
-    match = Regex('(.*?) \((\d{4})\)').search(title)
+    match = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text)
     metadata.title = match.group(1)
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
-    metadata.year = int(match.group(2))
+    metadata.year = int(match.group(2)) if match.group(2) else None
     metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
     metadata.rating = float(html.xpath('//em[@class="emph_grade"]')[0].text)
     # 장르
     metadata.genres.clear()
     dds = html.xpath('//dl[contains(@class, "list_movie")]/dd')
-    for genre in dds.pop(0).text.split('/'):
-        metadata.genres.add(genre)
+    for genre in (dds.pop(0).text or '').split('/'):
+      metadata.genres.add(genre)
     # 나라
     metadata.countries.clear()
     for country in dds.pop(0).text.split(','):
-        metadata.countries.add(country.strip())
+      metadata.countries.add(country.strip())
     # 개봉일 (optional)
     match = Regex(u'(\d{4}\.\d{2}\.\d{2})\s*개봉').search(dds[0].text)
     if match:
