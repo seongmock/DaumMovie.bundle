@@ -159,8 +159,8 @@ def searchDaumTV(results, media, lang):
     return
 
   items = []
-  id = Regex('irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1)
-  title = ''.join(tvp.xpath('//a[@class="tit_info"]/text()'))
+  title, id = Regex('q=(.*?)&irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1, 2)
+  title = urllib.unquote(title)
   try:
     year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
   except: year = None
@@ -368,7 +368,8 @@ def updateDaumTV(metadata, media):
   # (1) from detail page
   try:
     html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id))
-    metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
+    #metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
+    metadata.title = media.title
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
     metadata.original_title = ''
     metadata.rating = None
