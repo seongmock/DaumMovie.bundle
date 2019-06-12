@@ -200,11 +200,9 @@ def searchDaumTV(results, media, lang):
     items.append({ 'id': id, 'title': title, 'year': year })
 
   for idx, item in enumerate(items):
-    score = 80 - idx * 20
-    if media_year:
+    score = int(levenshteinRatio(media_name, item['title']) * 80)
+    if media_year and item['year']:
       score += (2 - min(2, abs(int(media_year) - int(item['year'])))) * 5
-    if score < 10:
-      score = 10
     Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
     results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
 
