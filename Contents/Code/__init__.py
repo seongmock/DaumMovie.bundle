@@ -130,8 +130,8 @@ def searchDaumMovie(results, media, lang):
 
   for id in media_ids:
     html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % id)
-    title, year = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text).group(1, 2)
-    original_title = html.xpath('//span[@class="txt_movie"]')[0].text or ''
+    title, year = Regex('^(.*?)(?:\((\d{4})\))?$').search(html.xpath('//strong[@class="tit_movie"]/span[@class="txt_name"]')[0].text).group(1, 2)
+    original_title = html.xpath('//span[@class="txt_origin"]')[0].text or ''
     score = int(max(levenshteinRatio(media_name, title), levenshteinRatio(media_name, original_title)) * 80)
     if media.year and year:
       score += (2 - min(2, abs(int(media.year) - int(year)))) * 10
@@ -212,12 +212,12 @@ def updateDaumMovie(metadata):
 
   try:
     html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % metadata.id)
-    match = Regex('^(.*?)(?: \((\d{4})\))?$').search(html.xpath('//div[@class="subject_movie"]/strong')[0].text)
+    match = Regex('^(.*?)(?:\((\d{4})\))?$').search(html.xpath('//strong[@class="tit_movie"]/span[@class="txt_name"]')[0].text)
     metadata.title = match.group(1)
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
     metadata.year = int(match.group(2)) if match.group(2) else None
-    metadata.original_title = html.xpath('//span[@class="txt_movie"]')[0].text
-    metadata.rating = float(html.xpath('//em[@class="emph_grade"]')[0].text)
+    metadata.original_title = html.xpath('//span[@class="txt_origin"]')[0].text
+    metadata.rating = float(''.join(html.xpath('//a[@class="wrap_grade"]/span[contains(@class,"num_grade")]/text()')))
     # 장르
     metadata.genres.clear()
     dds = html.xpath('//dl[contains(@class, "list_movie")]/dd')
