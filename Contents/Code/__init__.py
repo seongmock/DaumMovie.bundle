@@ -201,7 +201,7 @@ def searchDaumTV(results, media, lang):
     items.append({ 'id': id, 'title': title, 'year': year })
 
   for idx, item in enumerate(items):
-    score = int(levenshteinRatio(media_name, item['title']) * 80)
+    score = int(levenshteinRatio(media_name, item['title']) * 90)
     if media_year and item['year']:
       score += (2 - min(2, abs(int(media_year) - int(item['year'])))) * 5
     Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
@@ -663,7 +663,7 @@ def updateDaumTV(metadata, media):
           courseId, stepId = match.group(1, 2)
           page = 1
           while True:
-            html = HTML.ElementFromURL('http://www.ebs.co.kr/tv/show/vodListNew', values={
+            html = HTML.ElementFromURL('https://www.ebs.co.kr/tv/show/vodListNew', values={
                 'courseId': courseId,
                 'stepId': stepId,
                 'lectId': '666',    # '10962899',
@@ -691,7 +691,7 @@ def updateDaumTV(metadata, media):
                 if episode.summary and u'회차정보가 없습니다' not in episode.summary:
                   continue
                 # Log('E: S%s E%s %s %s' % (season_num, episode_num, episode_date, a.text.strip()))
-                show = HTML.ElementFromURL('http://www.ebs.co.kr/tv/show?prodId=&lectId=%s' % Regex('selVodList\(\'(\d+?)\'').search(a.get('href')).group(1), sleep = 0.5)
+                show = HTML.ElementFromURL('https://www.ebs.co.kr/tv/show?prodId=&lectId=%s' % Regex('selVodList\(\'(\d+?)\'').search(a.get('href')).group(1), sleep = 0.5)
                 episode.summary = show.xpath('//p[@class="detail_story"]')[0].text.strip()
                 episode.originally_available_at = episode_date
                 episode.title = a.text.strip() or date_based_episode_num
