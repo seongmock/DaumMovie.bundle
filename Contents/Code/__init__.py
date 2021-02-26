@@ -356,12 +356,19 @@ def updateDaumMovie(metadata):
   idx_poster = 0
   idx_art = 0
   for item in data['contents']:
-    if item['movieCategory'] == '스틸':
+    if item['movieCategory'] == '스틸' and idx_art < max_art:
       idx_art += 1
       art_url = item['imageUrl']
-      if art_url and art_url not in metadata.art:
+      if art_url not in metadata.art:
         try:
           metadata.art[art_url] = Proxy.Preview(downloadImage(art_url), sort_order = idx_art)
+        except Exception, e: Log(str(e))
+    if item['movieCategory'] == '포스터' and idx_poster < max_poster:
+      idx_poster += 1
+      poster_url = item['imageUrl']
+      if poster_url not in metadata.posters:
+        try:
+          metadata.posters[poster_url] = Proxy.Preview(downloadImage(poster_url), sort_order = idx_poster)
         except Exception, e: Log(str(e))
 
   if len(metadata.posters) == 0:
