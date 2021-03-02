@@ -258,8 +258,10 @@ def updateDaumMovie(metadata):
                          .replace('\r\n', '\n')
                          .replace('\n\n', '\n')
                          .strip())
-    poster_url = Regex('background-image:url\((.*?)\)').search(html.xpath('//div[@class="info_poster"]//span[@class="bg_img"]/@style')[0]).group(1)
-    poster_url = originalImageUrlFromDaumCdnUrl(poster_url)
+
+    bg_img = html.xpath('//div[@class="info_poster"]//span[@class="bg_img"]/@style')
+    if bg_img:
+        poster_url = originalImageUrlFromDaumCdnUrl(Regex('background-image:url\((.*?)\)').search(bg_img[0]).group(1))
 
   except Exception, e:
     Log.Debug(repr(e))
