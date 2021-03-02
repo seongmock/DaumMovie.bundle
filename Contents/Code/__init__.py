@@ -220,7 +220,7 @@ def updateDaumMovie(metadata):
     html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % metadata.id)
     metadata.title = html.xpath('//h3[@class="tit_movie"]/span[@class="txt_tit"]')[0].text.strip()
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
-    match = Regex('(.*?)(?:, (\d{4}))?$').search(html.xpath('//div[@class="tooltip_origin"]/p[@class="txt_tooltip"]')[0].text)
+    match = Regex('^(?:(.*), )?(\d{4})$').search(html.xpath('//div[@class="tooltip_origin"]/p[@class="txt_tooltip"]')[0].text)
     metadata.original_title = match.group(1)
     metadata.year = int(match.group(2))
 
@@ -238,7 +238,7 @@ def updateDaumMovie(metadata):
         for country in v.split(','):
           metadata.countries.add(country.strip())
       elif k == '개봉':
-        metadata.originally_available_at = Datetime.ParseDate(v)
+        metadata.originally_available_at = Datetime.ParseDate(v).date()
       elif k == '러닝타임':
         metadata.duration = int(Regex(u'(\d+)분').search(v).group(1)) * 60 * 1000
       elif k == '등급':
@@ -274,7 +274,7 @@ def updateDaumMovie(metadata):
   try:
     html = HTML.ElementFromURL(DAUM_MOVIE_CAST % metadata.id)
     for item in html.xpath(u'//div[@class="detail_crewinfo"]/h5[.="감독"]/following-sibling::ul/li'):
-      role = item.xpath('.//span[@class="txt_info"]/text()')[0]
+      # role = item.xpath('.//span[@class="txt_info"]/text()')[0]
       cast = dict()
       cast['name'] = item.xpath('.//strong[@class="tit_item"]/a/text()')[0]
       img = item.xpath('.//img[@class="img_thumb"]/@src')
