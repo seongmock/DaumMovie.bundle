@@ -4,11 +4,10 @@
 import urllib, unicodedata, os
 
 DAUM_MOVIE_SRCH   = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=EM1"
-DAUM_MOVIE_SGST   = "https://suggest-bar.daum.net/suggest?id=movie&cate=movie&multiple=1&mod=json&code=utf_in_out&q=%s"
+DAUM_MOVIE_SGST   = "https://suggest-bar.daum.net/suggest?id=movie_v2&cate=movie&multiple=1&q=%s"
 
-DAUM_MOVIE_DETAIL = "https://movie.daum.net/moviedb/main?movieId=%s"
-# DAUM_MOVIE_DETAIL = "http://movie.daum.net/data/movie/movie_info/detail.json?movieId=%s"
-DAUM_MOVIE_CAST   = "https://movie.daum.net/moviedb/crew?movieId=%s"
+DAUM_MOVIE_DETAIL = "https://movie.daum.net/api/movie/%s/main"
+DAUM_MOVIE_CAST   = "https://movie.daum.net/api/movie/%s/crew"
 DAUM_MOVIE_PHOTO  = "https://movie.daum.net/api/movie/%s/photoList?page=1&size=100"
 
 DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=TVP"
@@ -135,15 +134,15 @@ def searchDaumMovie(results, media, lang):
     return
 
   for id in media_ids:
-    html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % id)
-    title = html.xpath('//h3[@class="tit_movie"]/span[@class="txt_tit"]')[0].text.strip()
-    original_title, year = Regex('(.*?)(?:, (\d{4}))?$').search(html.xpath('//div[@class="tooltip_origin"]/p[@class="txt_tooltip"]')[0].text).group(1, 2)
-    score = int(max(levenshteinRatio(media_name, title), levenshteinRatio(media_name, original_title)) * 80)
+    data = JSON.ObjectFromURL(DAUM_MOVIE_DETAIL % id)
+    title = data['movieCommon']['titleKorean']
+    year = data['movieCommon']['productionYear']
+    score = int(max(
+      levenshteinRatio(media_name, title),
+      levenshteinRatio(media_name, data['movieCommon']['titleEnglish']),
+      levenshteinRatio(media_name, data['movieCommon']['titleOrigin'] or '')) * 80)
     if media.year and year:
       score += (2 - min(2, abs(int(media.year) - int(year)))) * 10
-    # countries = html.xpath('//dl[contains(@class, "list_movie")]/dd')[1].text
-    # if u'한국' not in countries and original_title:
-    #   title += ' (' + original_title + ')'
     Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(id, media_name, title, year, score))
     results.Append(MetadataSearchResult(id=id, name=title, year=year, score=score, lang=lang))
 
@@ -217,51 +216,41 @@ def updateDaumMovie(metadata):
   poster_url = None
 
   try:
-    html = HTML.ElementFromURL(DAUM_MOVIE_DETAIL % metadata.id)
-    metadata.title = html.xpath('//h3[@class="tit_movie"]/span[@class="txt_tit"]')[0].text.strip()
+    data = JSON.ObjectFromURL(DAUM_MOVIE_DETAIL % metadata.id)
+    metadata.title = data['movieCommon']['titleKorean']
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
-    match = Regex('^(?:(.*), )?(\d{4})$').search(html.xpath('//div[@class="tooltip_origin"]/p[@class="txt_tooltip"]')[0].text)
-    metadata.original_title = match.group(1)
-    metadata.year = int(match.group(2))
-
-    for dt in html.xpath('//div[@class="detail_cont"]/div/dl/dt'):
-      k = dt.text
-      v = dt.xpath('./following-sibling::dd/text()')[0].strip()
-      if k == '평점':
-        metadata.rating = float(v)
-      elif k == '장르':
-        metadata.genres.clear()
-        for genre in v.split('/'):
-          metadata.genres.add(genre)
-      elif k == '국가':
-        metadata.countries.clear()
-        for country in v.split(','):
-          metadata.countries.add(country.strip())
-      elif k == '개봉':
-        metadata.originally_available_at = Datetime.ParseDate(v).date()
-      elif k == '러닝타임':
-        metadata.duration = int(Regex(u'(\d+)분').search(v).group(1)) * 60 * 1000
-      elif k == '등급':
-        match = Regex(u'미국 (.*) 등급').search(v)
-        if match:
-          metadata.content_rating = match.group(1)
-        elif v in DAUM_CR_TO_MPAA_CR:
-          metadata.content_rating = DAUM_CR_TO_MPAA_CR[v]['MPAA' if Prefs['use_mpaa'] else 'KMRB']
-        else:
-          metadata.content_rating = 'kr/' + v
+    metadata.rating = float(data['movieCommon']['avgRating'])
+    metadata.genres.clear()
+    for genre in data['movieCommon']['genres']:
+      metadata.genres.add(genre)
+    metadata.countries.clear()
+    for country in data['movieCommon']['productionCountries']:
+      metadata.countries.add(country)
+    metadata.summary = String.DecodeHTMLEntities(String.StripTags(data['movieCommon']['plot'])).strip()
+    if data['movieCommon']['mainPhoto']:
+      poster_url = data['movieCommon']['mainPhoto']['imageUrl']
 
     # Log.Debug('genre=%s, country=%s' %(','.join(g for g in metadata.genres), ','.join(c for c in metadata.countries)))
     # Log.Debug('oaa=%s, duration=%s, content_rating=%s' %(metadata.originally_available_at, metadata.duration, metadata.content_rating))
 
-    metadata.summary = ('\n'.join(node.strip() if isinstance(node, basestring) else ''.join(node.xpath('./text()')).strip()
-                       for node in html.xpath('//div[@class="movie_summary"]/div/div/node()[not(self::div)]'))
-                         .replace('\r\n', '\n')
-                         .replace('\n\n', '\n')
-                         .strip())
+    try:
+      countryMovieInfo = (x for x in data['movieCommon']['countryMovieInformation'] if x['country']['id'] == 'KR').next()
+      if countryMovieInfo['admissionCode'] in DAUM_CR_TO_MPAA_CR:
+        metadata.content_rating = DAUM_CR_TO_MPAA_CR[countryMovieInfo['admissionCode']]['MPAA' if Prefs['use_mpaa'] else 'KMRB']
+      else:
+        metadata.content_rating = 'kr/' + countryMovieInfo['admissionCode']
+    except StopIteration:
+      countryMovieInfo = data['movieCommon']['countryMovieInformation'][0]
+      if countryMovieInfo['admissionCode']:
+        metadata.content_rating = countryMovieInfo['country']['id'].lower() + '/' + countryMovieInfo['admissionCode']
 
-    bg_img = html.xpath('//div[@class="info_poster"]//span[@class="bg_img"]/@style')
-    if bg_img:
-        poster_url = originalImageUrlFromDaumCdnUrl(Regex('background-image:url\((.*?)\)').search(bg_img[0]).group(1))
+    metadata.duration = countryMovieInfo['duration'] * 60 * 1000
+
+    for cmi in data['movieCommon']['countryMovieInformation']:
+      if cmi['country']['nameKorean'] in data['movieCommon']['productionCountries'] and cmi['releaseDate']:
+        metadata.originally_available_at = Datetime.ParseDate(cmi['releaseDate']).date()
+        break
+    # metadata.originally_available_at = Datetime.ParseDate(countryMovieInfo['releaseDate']).date()
 
   except Exception, e:
     Log.Debug(repr(e))
@@ -274,43 +263,33 @@ def updateDaumMovie(metadata):
   roles = list()
 
   try:
-    html = HTML.ElementFromURL(DAUM_MOVIE_CAST % metadata.id)
-    for item in html.xpath(u'//div[@class="detail_crewinfo"]/h5[.="감독"]/following-sibling::ul/li'):
-      # role = item.xpath('.//span[@class="txt_info"]/text()')[0]
+    data = JSON.ObjectFromURL(DAUM_MOVIE_CAST % metadata.id)
+    for a in data['casts']:
       cast = dict()
-      cast['name'] = item.xpath('.//strong[@class="tit_item"]/a/text()')[0]
-      img = item.xpath('.//img[@class="img_thumb"]/@src')
-      if img:
-        cast['photo'] = originalImageUrlFromDaumCdnUrl(img[0])
-      directors.append(cast)
+      cast['name'] = a['nameKorean']
+      if a['profileImage']:
+        cast['photo'] = a['profileImage']
+      if a['description']:
+        cast['role'] = a['description']
+        roles.append(cast)
+      else:
+        role = a['movieJob']['role']
+        if role in [ '감독' ]:
+          directors.append(cast)
 
-    for item in html.xpath(u'//div[@class="detail_crewinfo"]/h5[.="주연" or .="출연"]/following-sibling::ul/li'):
-      character = item.xpath('.//span[@class="txt_info"]/text()')[0]
-      role = dict()
-      role['role'] = character[:-1] if character.endswith('역') else character
-      role['name'] = item.xpath('.//strong[@class="tit_item"]/a/text()')[0]
-      img = item.xpath('.//img[@class="img_thumb"]/@src')
-      if img:
-        role['photo'] = originalImageUrlFromDaumCdnUrl(img[0])
-      roles.append(role)
+    for a in data['staff']:
+      staff = dict()
+      staff['name'] = a['nameKorean']
+      if a['profileImage']:
+        staff['photo'] = a['profileImage']
+      role = a['movieJob']['role']
+      if role in [ '제작', '기획' ]:
+        producers.append(staff)
+      elif role in [ '각본', '원작' ]:
+        writers.append(staff)
 
-    for dl in html.xpath(u'//div[@class="detail_produceinfo"]/h5[.="제작진" or .="영화사"]/following-sibling::dl'):
-      for dt in dl.xpath('./dt'):
-        role = dt.text
-        for a in dt.xpath('./following-sibling::dd/a'):
-          crew = dict()
-          crew['name'] = a.text
-          # personId = a.attrib['href'].partition('personId=')[-1]
-          # data = JSON.ObjectFromURL('https://movie.daum.net/api/person/%s/photoList' % personId)
-          # if data['contents']:
-          #   crew['photo'] = data['contents'][0]['imageUrl']
-
-          if role in [ '제작', '기획' ]:
-            producers.append(crew)
-          elif role in [ '각본', '원작' ]:
-            writers.append(crew)
-          elif role in [ '배급' ]:
-            metadata.studio = a.text
+    if data['companies']:
+      metadata.studio = data['companies'][0]['nameKorean'] or data['companies'][0]['nameEnglish']
 
   except Exception, e:
     Log.Debug(repr(e))
