@@ -139,7 +139,7 @@ def searchDaumMovie(results, media, lang):
     year = data['movieCommon']['productionYear']
     score = int(max(
       levenshteinRatio(media_name, title),
-      levenshteinRatio(media_name, data['movieCommon']['titleEnglish']),
+      levenshteinRatio(media_name, data['movieCommon']['titleEnglish'] or ''),
       levenshteinRatio(media_name, data['movieCommon']['titleOrigin'] or '')) * 80)
     if media.year and year:
       score += (2 - min(2, abs(int(media.year) - int(year)))) * 10
@@ -219,7 +219,8 @@ def updateDaumMovie(metadata):
     data = JSON.ObjectFromURL(DAUM_MOVIE_DETAIL % metadata.id)
     metadata.title = data['movieCommon']['titleKorean']
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
-    metadata.rating = float(data['movieCommon']['avgRating'])
+    try: metadata.rating = float(data['movieCommon']['avgRating'])
+    except: metadata.rating = None
     metadata.genres.clear()
     for genre in data['movieCommon']['genres']:
       metadata.genres.add(genre)
@@ -269,13 +270,12 @@ def updateDaumMovie(metadata):
       cast['name'] = a['nameKorean']
       if a['profileImage']:
         cast['photo'] = a['profileImage']
-      if a['description']:
-        cast['role'] = a['description']
+      role = a['movieJob']['role']
+      if role == '감독':
+        directors.append(cast)
+      else:   # 주연, 출연
+        cast['role'] = a['description'].strip() or role
         roles.append(cast)
-      else:
-        role = a['movieJob']['role']
-        if role in [ '감독' ]:
-          directors.append(cast)
 
     for a in data['staff']:
       staff = dict()
