@@ -274,7 +274,7 @@ def updateDaumMovie(metadata):
       if role == '감독':
         directors.append(cast)
       else:   # 주연, 출연
-        cast['role'] = a['description'].strip() or role
+        cast['role'] = a['description'].strip() if a.get('description') else role
         roles.append(cast)
 
     for a in data['staff']:
