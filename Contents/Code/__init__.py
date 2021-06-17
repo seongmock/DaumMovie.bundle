@@ -234,24 +234,20 @@ def updateDaumMovie(metadata):
     # Log.Debug('genre=%s, country=%s' %(','.join(g for g in metadata.genres), ','.join(c for c in metadata.countries)))
     # Log.Debug('oaa=%s, duration=%s, content_rating=%s' %(metadata.originally_available_at, metadata.duration, metadata.content_rating))
 
-    try:
-      countryMovieInfo = (x for x in data['movieCommon']['countryMovieInformation'] if x['country']['id'] == 'KR').next()
-      if countryMovieInfo['admissionCode'] in DAUM_CR_TO_MPAA_CR:
-        metadata.content_rating = DAUM_CR_TO_MPAA_CR[countryMovieInfo['admissionCode']]['MPAA' if Prefs['use_mpaa'] else 'KMRB']
-      else:
-        metadata.content_rating = 'kr/' + countryMovieInfo['admissionCode']
-    except StopIteration:
-      countryMovieInfo = data['movieCommon']['countryMovieInformation'][0]
-      if countryMovieInfo['admissionCode']:
-        metadata.content_rating = countryMovieInfo['country']['id'].lower() + '/' + countryMovieInfo['admissionCode']
-
-    metadata.duration = countryMovieInfo['duration'] * 60 * 1000
-
-    for cmi in data['movieCommon']['countryMovieInformation']:
-      if cmi['country']['nameKorean'] in data['movieCommon']['productionCountries'] and cmi['releaseDate']:
-        metadata.originally_available_at = Datetime.ParseDate(cmi['releaseDate']).date()
-        break
-    # metadata.originally_available_at = Datetime.ParseDate(countryMovieInfo['releaseDate']).date()
+    productionCountries = [ '한국' ]
+    productionCountries.append(data['movieCommon']['productionCountries'])
+    for pc in productionCountries:
+      try:
+        cmi = (x for x in data['movieCommon']['countryMovieInformation'] if x['country']['nameKorean'] == pc).next()
+        if cmi['releaseDate'] and cmi['admissionCode']:
+          metadata.originally_available_at = Datetime.ParseDate(cmi['releaseDate']).date()
+          metadata.duration = cmi['duration'] * 60 * 1000
+          if cmi['country']['id'] == 'KR' and cmi['admissionCode'] in DAUM_CR_TO_MPAA_CR:
+            metadata.content_rating = DAUM_CR_TO_MPAA_CR[cmi['admissionCode']]['MPAA' if Prefs['use_mpaa'] else 'KMRB']
+          else:
+            metadata.content_rating = cmi['country']['id'].lower() + '/' + cmi['admissionCode']
+          break
+      except StopIteration: pass
 
   except Exception, e:
     Log.Debug(repr(e))
