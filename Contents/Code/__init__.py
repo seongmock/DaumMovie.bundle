@@ -51,6 +51,11 @@ def Start():
   HTTP.CacheTime = CACHE_1HOUR * 12
   HTTP.Headers['Accept'] = 'text/html, application/json'
 
+  if Prefs['http_proxy'].strip():
+    os.environ['http_proxy'] = Prefs['http_proxy'].strip()
+  if Prefs['https_proxy'].strip():
+    os.environ['https_proxy'] = Prefs['https_proxy'].strip()
+
 def downloadImage(url, fetchContent=True):
   if Prefs['use_https_for_image']:
     url = url.replace('http://', 'https://')

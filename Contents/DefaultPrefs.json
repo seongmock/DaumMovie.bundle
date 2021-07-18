@@ -44,5 +44,17 @@
     "label": "Use https for image download",
     "type": "bool",
     "default": "false"
+  },
+  {
+    "id": "http_proxy",
+    "label": "Web proxy (http) (PMS restart required)",
+    "type": "text",
+    "default": ""
+  },
+  {
+    "id": "https_proxy",
+    "label": "Secure web proxy (https) (PMS restart required)",
+    "type": "text",
+    "default": ""
   }
 ]

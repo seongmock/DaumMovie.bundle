@@ -1,0 +1,11 @@
+{
+  "Maximum Number of Posters": "최대 포스터 개수",
+  "Maximum Number of Arts": "최대 배경화면 개수",
+  "Override metadata id for Movie": "영화 ID 덮어쓰기",
+  "Override metadata id for TV shows": "드라마 ID 덮어쓰기",
+  "Use MPAA film rating system": "MPAA 영화 등급 사용",
+  "Index titles by decomposed Hangul syllables": "영화/드라마 제목을 초성 기준으로 색인",
+  "Use https for image download": "이미지를 https로 다운로드",
+  "Web proxy (http) (PMS restart required)": "웹 프록시 (http) (PMS 재시작해야 함)",
+  "Secure web proxy (https) (PMS restart required)": "보안 웹 프록시 (https) (PMS 재시작해야 함)"
+}
