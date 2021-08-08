@@ -422,11 +422,13 @@ def updateDaumTV(metadata, media):
       if a:
         cast['name'] = a[0].text
         cast['role'] = item.xpath('./span[@class="txt_name"]/a')[0].text
-        cast['photo'] = 'https:' + item.xpath('./div/a/img/@src')[0]
+        cast['photo'] = item.xpath('./div/a/img/@src')[0]
       else:
         cast['name'] = item.xpath('./span[@class="txt_name"]/a')[0].text
         cast['role'] = item.xpath('./span[@class="sub_name"]')[0].text.strip()
-        cast['photo'] = 'https:' + item.xpath('./div/a/img/@src')[0]
+        cast['photo'] = item.xpath('./div/a/img/@src')[0]
+      if cast['photo'].startswith('//'):
+        cast['photo'] = ( 'http:', 'https:' )[Prefs['use_https_for_image']] + cast['photo']
       roles.append(cast)
     except: pass
 
