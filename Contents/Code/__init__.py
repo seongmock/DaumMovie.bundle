@@ -62,26 +62,29 @@ def downloadImage(url, fetchContent=True):
 
   try:
     result = HTTP.Request(url, timeout=60, cacheTime=0, immediate=fetchContent)
-  except Ex.HTTPError, e:
+  except Ex.HTTPError as e:
     Log('HTTPError %s: %s' % (e.code, e.message))
     return None
-  except Exception, e:
+  except Exception as e:
     Log('Problem with the request: %s' % e.message)
     return None
 
   if fetchContent:
     try:
       result = result.content
-    except Exception, e:
+    except Exception as e:
       Log('Content Error (%s) - %s' % (e, e.message))
 
   return result
 
-def originalImageUrlFromDaumCdnUrl(daumCdnUrl):
-  if 'daumcdn.net' in daumCdnUrl:
-    return urllib.unquote(Regex('fname=(.*)').search(daumCdnUrl).group(1))
-  else:
-    return daumCdnUrl
+def originalImageUrlFromCdnUrl(url):
+  if 'daumcdn.net' in url:
+    url = urllib.unquote(Regex('fname=(.*)').search(url).group(1))
+
+  if url.startswith('//'):
+    url = ( 'http:', 'https:' )[Prefs['use_https_for_image']] + url
+
+  return url
 
 def levenshteinRatio(first, second):
   return 1 - (Util.LevenshteinDistance(first, second) / float(max(len(first), len(second))))
@@ -114,7 +117,7 @@ def searchDaumMovie(results, media, lang):
         # 영화검색 > 동명영화
         for a in movieEColl[0].xpath('.//div[@class="coll_etc"]//a'):
           media_ids.append(Regex('scckey=MV\|\|(\d+)').search(a.get('href')).group(1))
-      except Exception, e: Log(str(e))
+      except Exception as e: Log(str(e))
       break
     if containsHangul(media_words.pop()):
       break
@@ -254,7 +257,7 @@ def updateDaumMovie(metadata):
           break
       except StopIteration: pass
 
-  except Exception, e:
+  except Exception as e:
     Log.Debug(repr(e))
     pass
 
@@ -292,7 +295,7 @@ def updateDaumMovie(metadata):
     if data['companies']:
       metadata.studio = data['companies'][0]['nameKorean'] or data['companies'][0]['nameEnglish']
 
-  except Exception, e:
+  except Exception as e:
     Log.Debug(repr(e))
     pass
 
@@ -344,20 +347,20 @@ def updateDaumMovie(metadata):
       if art_url not in metadata.art:
         try:
           metadata.art[art_url] = Proxy.Preview(downloadImage(art_url), sort_order = idx_art)
-        except Exception, e: Log(str(e))
+        except Exception as e: Log(str(e))
     if item['movieCategory'] == '포스터' and idx_poster < max_poster:
       idx_poster += 1
       poster_url = item['imageUrl']
       if poster_url not in metadata.posters:
         try:
           metadata.posters[poster_url] = Proxy.Preview(downloadImage(poster_url), sort_order = idx_poster)
-        except Exception, e: Log(str(e))
+        except Exception as e: Log(str(e))
 
   if len(metadata.posters) == 0:
     if poster_url:
       try:
         metadata.posters[poster_url] = Proxy.Preview(downloadImage(poster_url), sort_order = 100)
-      except Exception, e: Log(str(e))
+      except Exception as e: Log(str(e))
 
   Log.Debug('Total %d posters, %d artworks' %(len(metadata.posters), len(metadata.art)))
 
@@ -386,10 +389,11 @@ def updateDaumTV(metadata, media):
 
     # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
     # poster_url = urlparse.parse_qs(urlparse.urlparse(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).query)['fname'][0]
-    poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
+    # poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
+    poster_url = originalImageUrlFromCdnUrl(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0])
     if poster_url not in metadata.posters:
       metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.posters) + 1)
-  except Exception, e:
+  except Exception as e:
     Log.Debug(repr(e))
     pass
 
@@ -422,13 +426,11 @@ def updateDaumTV(metadata, media):
       if a:
         cast['name'] = a[0].text
         cast['role'] = item.xpath('./span[@class="txt_name"]/a')[0].text
-        cast['photo'] = item.xpath('./div/a/img/@src')[0]
+        cast['photo'] = originalImageUrlFromCdnUrl(item.xpath('./div/a/img/@src')[0])
       else:
         cast['name'] = item.xpath('./span[@class="txt_name"]/a')[0].text
         cast['role'] = item.xpath('./span[@class="sub_name"]')[0].text.strip()
-        cast['photo'] = item.xpath('./div/a/img/@src')[0]
-      if cast['photo'].startswith('//'):
-        cast['photo'] = ( 'http:', 'https:' )[Prefs['use_https_for_image']] + cast['photo']
+        cast['photo'] = originalImageUrlFromCdnUrl(item.xpath('./div/a/img/@src')[0])
       roles.append(cast)
     except: pass
 
@@ -488,7 +490,7 @@ def updateDaumTV(metadata, media):
       for prv in page.xpath('//div[@class="roll-ban-event"]/ul/li/img/@src'):
         if prv not in metadata.art:
           try: metadata.art[prv] = Proxy.Preview(HTTP.Request(prv, cacheTime=0), sort_order = len(metadata.art) + 1)
-          except Exception, e: Log(str(e))
+          except Exception as e: Log(str(e))
 
   # TV검색 > TV정보 > 다시보기
   vod = html.xpath(u'//a[span[contains(.,"다시보기")]]/@href')
@@ -545,7 +547,7 @@ def updateDaumTV(metadata, media):
                     episode.originally_available_at = episode_date
                     episode.title = info['Title']
                     episode.rating = None
-      except Exception, e:
+      except Exception as e:
         Log.Debug(repr(e))
         pass
 
@@ -562,7 +564,7 @@ def updateDaumTV(metadata, media):
           shareimg = 'http:' + shareimg
         if shareimg not in metadata.art:
           try: metadata.art[shareimg] = Proxy.Preview(HTTP.Request(shareimg, cacheTime=0), sort_order = len(metadata.art) + 1)
-          except Exception, e: Log(str(e))
+          except Exception as e: Log(str(e))
 
         # http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?...
         vods = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?offset=%d&limit=%d&sort=new&search=&cliptype=&subcategory=&programid=%s&absolute_show=Y&mdadiv=01&viewcount=Y' %
@@ -592,7 +594,7 @@ def updateDaumTV(metadata, media):
               episode.originally_available_at = episode_date
               episode.title = v['content']['contenttitle'].strip()
               episode.rating = None
-      except Exception, e:
+      except Exception as e:
         Log.Debug(repr(e))
         pass
 
@@ -608,12 +610,12 @@ def updateDaumTV(metadata, media):
         image_h = menu['data']['site']['meta']['image_h']
         if image_h not in metadata.posters:
           try: metadata.posters[image_h] = Proxy.Preview(HTTP.Request(image_h, cacheTime=0), sort_order = len(metadata.posters) + 1)
-          except Exception, e: Log(str(e))
+          except Exception as e: Log(str(e))
 
         image_w = menu['data']['site']['meta']['image_w']
         if image_w not in metadata.art:
           try: metadata.art[image_w] = Proxy.Preview(HTTP.Request(image_w, cacheTime=0), sort_order = len(metadata.art) + 1)
-          except Exception, e: Log(str(e))
+          except Exception as e: Log(str(e))
 
         page = 1
         while True:
@@ -647,7 +649,7 @@ def updateDaumTV(metadata, media):
           if page > res['page_count']:
             break
 
-      except Exception, e:
+      except Exception as e:
         Log.Debug(repr(e))
         pass
 
@@ -699,7 +701,25 @@ def updateDaumTV(metadata, media):
             if page > min(20, int(''.join(html.xpath('//span[@class="pro_vod_page"]//text()')).strip().split(' / ')[1])):
               break
 
-      except Exception, e:
+      except Exception as e:
+        Log.Debug(repr(e))
+        pass
+
+    elif 'www.tving.com' in replay_url:
+      try:
+        # https://www.tving.com/contents/P001641335
+        programCode = Regex('contents/(.+)$').search(replay_url).group(1)
+        response = JSON.ObjectFromURL(('https://api.tving.com/v2/media/frequency/program/%s?'
+            'order=new&screenCode=CSSD0100&networkCode=CSND0900&osCode=CSOD0900&teleCode=CSCD0900&apiKey=1e7952d0917d6aab1f0293a063697610&'
+            'cacheType=main&pageSize=20&&adult=all&free=all&guest=all&scope=all') % programCode)
+        for result in response['body']['result']:
+          episode = metadata.seasons['1'].episodes[str(result['episode']['frequency'])]
+          episode.summary = result['episode']['synopsis']['ko']
+          episode.originally_available_at = Datetime.ParseDate(str(result['episode']['broadcast_date']), '%Y%m%d').date()
+          episode.title = result['vod_name']['ko']
+          episode.rating = None
+
+      except Exception as e:
         Log.Debug(repr(e))
         pass
 
