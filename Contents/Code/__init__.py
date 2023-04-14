@@ -4,7 +4,7 @@
 import urllib, unicodedata, os
 
 DAUM_MOVIE_SRCH   = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=EM1"
-DAUM_MOVIE_SGST   = "https://suggest-bar.daum.net/suggest?id=movie_v2&cate=movie&multiple=1&q=%s"
+DAUM_MOVIE_SGST   = "https://dapi.kakao.com/suggest-hub/v1/search.json?service=movie-v2&cate=movie&multiple=1&q=%s"
 
 DAUM_MOVIE_DETAIL = "https://movie.daum.net/api/movie/%s/main"
 DAUM_MOVIE_CAST   = "https://movie.daum.net/api/movie/%s/crew"
@@ -51,9 +51,9 @@ def Start():
   HTTP.CacheTime = CACHE_1HOUR * 12
   HTTP.Headers['Accept'] = 'text/html, application/json'
 
-  if Prefs['http_proxy'].strip():
+  if Prefs['http_proxy']:
     os.environ['http_proxy'] = Prefs['http_proxy'].strip()
-  if Prefs['https_proxy'].strip():
+  if Prefs['https_proxy']:
     os.environ['https_proxy'] = Prefs['https_proxy'].strip()
 
 def downloadImage(url, fetchContent=True):
@@ -129,10 +129,11 @@ def searchDaumMovie(results, media, lang):
     while media_words:
       media_name = ' '.join(media_words)
       Log.Debug("search: %s %s" %(media_name, media.year))
-      data = JSON.ObjectFromURL(url=DAUM_MOVIE_SGST % (urllib.quote(media_name.encode('utf8'))))
-      items = data['items']['movie']
-      if items:
-        media_ids = [ item.split('|')[1] for item in items]
+      data = JSON.ObjectFromURL(url=DAUM_MOVIE_SGST % (urllib.quote(media_name.encode('utf8'))), headers={'authorization': 'KakaoAK eef996dbcc900b7c164d80b6653565b3'})
+      movies = data['items']['movie']
+      if movies:
+        media_ids = [ movie['item'].split('|')[1] for movie in movies]
+        Log.Debug(media_ids)
         break
       if containsHangul(media_words.pop()):
         break
