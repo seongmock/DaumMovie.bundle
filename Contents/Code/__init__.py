@@ -503,6 +503,7 @@ def updateDaumTV(metadata, media):
   for season_item in season_items:
     if season_search:
       epi_html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), season_item['id']))
+      Log.Debug("Season epi_html load: %s" %(season_item['id']))
       match = Regex('(\d+)\s*$').search(season_item['title'])
       if match:
         season_num = str(match.group(1))
@@ -521,8 +522,10 @@ def updateDaumTV(metadata, media):
       if not episode_num: continue    # 시청지도서
       date_based_season_num = episode_date.year
       date_based_episode_num = episode_date.strftime('%Y-%m-%d')
+      Log.Debug(media.seasons)
       if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
           (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+        Log.Debug("Hit: %s %s" %(season_item['title'], season_num))
         page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
         episode = metadata.seasons[season_num].episodes[episode_num]
         subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
