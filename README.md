@@ -1,9 +1,16 @@
+
+# axfree님의 GIT을 Fork하여수정하였습니다.
+
+* TV메타정보를 시즌제로 변경
+* Episode thumbnail추가
+
+
+
 [다음영화](http://movie.daum.net)에서 영화/드라마 정보를 가져오는 Plex용 Metadata Agent입니다.
 
 [드라마를 위한 Metadata Agent](https://github.com/hojel/DaumMovieTv.bundle)가 따로 있었으나 통합됨.
 
-## AxFree님 git 을 Fork하여 생성 
-## TV프로그램들의 시즌관리를 위해 일부수정
+
 
 설정
 ==============
