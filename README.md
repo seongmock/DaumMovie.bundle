@@ -2,6 +2,9 @@
 
 [드라마를 위한 Metadata Agent](https://github.com/hojel/DaumMovieTv.bundle)가 따로 있었으나 통합됨.
 
+## AxFree님 git 을 Fork하여 생성 
+## TV프로그램들의 시즌관리를 위해 일부수정
+
 설정
 ==============
 
