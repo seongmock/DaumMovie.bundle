@@ -504,6 +504,7 @@ def updateDaumTV(metadata, media):
         season_num = str(match.group(1))
       else:
         season_num = '1'
+      Log.Debug("Season number search: %s %s" %(season_item['title'], season_num))
     else:
       epi_html = html
       season_num = '1'
