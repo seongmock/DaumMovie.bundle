@@ -522,10 +522,9 @@ def updateDaumTV(metadata, media):
       if not episode_num: continue    # 시청지도서
       date_based_season_num = episode_date.year
       date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-      Log.Debug(media.seasons)
       if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
           (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-        Log.Debug("Hit: %s %s" %(season_item['title'], season_num))
+        Log.Debug("Hit: %s %s %s" %(season_item['title'], season_num, episode_num))
         page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
         episode = metadata.seasons[season_num].episodes[episode_num]
         subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
@@ -533,6 +532,7 @@ def updateDaumTV(metadata, media):
         episode.originally_available_at = episode_date
         episode.title = subtitle[0] if subtitle else date_based_episode_num
         episode.rating = None
+        Log.Debug(episode.summary)
 
         if directors:
           episode.directors.clear()
