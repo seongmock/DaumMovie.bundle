@@ -513,7 +513,7 @@ def updateDaumTV(metadata, media):
       poster_url = originalImageUrlFromCdnUrl(epi_html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0])
       if media is None or season_num in media.seasons:
         if poster_url not in metadata.seasons[season_num].posters:
-          try: metadata.seasons[season_num].posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.seasons[season_num].posters) + 1)
+          try: metadata.seasons[season_num].posters[poster_url] = Proxy.Preview(HTTP.Request(pos  ter_url, cacheTime=0), sort_order = len(metadata.seasons[season_num].posters) + 1)
           except Exception, e: Log(str(e))
       Log.Debug("Season number search: %s %s" %(season_item['title'], season_num))
     else:
@@ -538,6 +538,10 @@ def updateDaumTV(metadata, media):
         episode.originally_available_at = episode_date
         episode.title = subtitle[0] if subtitle else date_based_episode_num
         episode.rating = None
+        thumbs_url = originalImageUrlFromCdnUrl(page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@src')[0])
+        if thumbs_url not in episode.thumbs:
+          try: episode.thumbs[thumbs_url] = Proxy.Preview(HTTP.Request(thumbs_url, cacheTime=0), sort_order = len(episode.thumbs) + 1)
+          except Exception, e: Log(str(e))
 
         if directors:
           episode.directors.clear()
