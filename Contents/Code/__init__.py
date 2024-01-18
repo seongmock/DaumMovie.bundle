@@ -379,7 +379,7 @@ def updateDaumTV(metadata, media):
 
     #Series Search
     if season_search: 
-      Log.Debug("Series search: %s" %(media.title))
+      Log.Debug("Season search: %s" %(media.title))
 
       # TV검색
       html = HTML.ElementFromURL(DAUM_TV_SRCH % urllib.quote(media.title.encode('utf8')))
@@ -509,6 +509,12 @@ def updateDaumTV(metadata, media):
         season_num = str(match.group(1))
       else:
         season_num = '1'
+
+      poster_url = originalImageUrlFromCdnUrl(epi_html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0])
+      if media is None or season_num in media.seasons:
+        if poster_url not in metadata.seasons[season_num].posters:
+          try: metadata.seasons[season_num].posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.seasons[season_num].posters) + 1)
+          except Exception, e: Log(str(e))
       Log.Debug("Season number search: %s %s" %(season_item['title'], season_num))
     else:
       epi_html = html
@@ -524,7 +530,7 @@ def updateDaumTV(metadata, media):
       date_based_episode_num = episode_date.strftime('%Y-%m-%d')
       if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
           (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-        Log.Debug("Hit: %s %s %s" %(season_item['title'], season_num, episode_num))
+        # Log.Debug("Hit: %s %s %s" %(season_item['title'], season_num, episode_num))
         page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
         episode = metadata.seasons[season_num].episodes[episode_num]
         subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
@@ -532,7 +538,6 @@ def updateDaumTV(metadata, media):
         episode.originally_available_at = episode_date
         episode.title = subtitle[0] if subtitle else date_based_episode_num
         episode.rating = None
-        Log.Debug(episode.summary)
 
         if directors:
           episode.directors.clear()
