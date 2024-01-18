@@ -368,6 +368,53 @@ def updateDaumMovie(metadata):
 def updateDaumTV(metadata, media):
   # (1) from detail page
   try:
+
+    season_search = False
+    if any([season != '1' for season in media.seasons]):
+      season_search = True
+
+    #Series Search
+    if season_search: 
+      Log.Debug("Series search: %s" %(media.title))
+
+      # TV검색
+      html = HTML.ElementFromURL(DAUM_TV_SRCH % urllib.quote(media.title.encode('utf8')))
+      try:
+        tvp = html.xpath('//div[@id="tvpColl"]')[0]
+      except:
+        Log.Debug('No TV matches found')
+        return
+
+      season_items = []
+      title, id = Regex('q=(.*?)&irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1, 2)
+      title = urllib.unquote(title)
+      try:
+        year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
+      except: year = None
+      season_items.append({ 'id': id, 'title': title, 'year': year })
+
+      # TV검색 > 시리즈
+      more_a = tvp.xpath(u'//a[span[.="시리즈 더보기"]]')
+      if more_a:
+        html = HTML.ElementFromURL('https://search.daum.net/search%s' % more_a[0].get('href'))
+        for li in html.xpath('//div[@id="series"]//li'):
+          a = li.xpath('.//a')[1]
+          id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+          title = a.text
+          try:
+            year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
+            season_items.append({ 'id': id, 'title': title, 'year': year })
+          except: pass
+      else:
+        lis = tvp.xpath('//div[@id="tv_series"]//li')
+        for li in lis:
+          id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
+          title = li.xpath('./a')[0].text
+          try:
+            year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
+            season_items.append({ 'id': id, 'title': title, 'year': year })
+          except: pass
+
     html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id))
     #metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
     metadata.title = media.title
@@ -447,41 +494,54 @@ def updateDaumTV(metadata, media):
         meta_role.photo = role['photo']
 
   # (4) from episode page
-  for a in html.xpath('//ul[@id="clipDateList"]/li/a'):
-    season_num = '1'
-    episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
-    try:
-      episode_date = Datetime.ParseDate(a.xpath('./parent::li/@data-clip')[0], '%Y%m%d').date()
-    except: continue
-    if not episode_num: continue    # 시청지도서
-    date_based_season_num = episode_date.year
-    date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-    if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-        (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-      page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
-      episode = metadata.seasons[season_num].episodes[episode_num]
-      subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
-      episode.summary = '\n'.join(txt.strip() for txt in page.xpath('//p[@class="episode_desc"]/text()')).strip()
-      episode.originally_available_at = episode_date
-      episode.title = subtitle[0] if subtitle else date_based_episode_num
-      episode.rating = None
+  if not season_search:
+    season_items = [{"id":"No search"}]
+  for season_item in season_items:
+    if season_search:
+      epi_html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), season_item['id']))
+      match = Regex('(\d+)\s*$').search(season_item['title'])
+      if match:
+        season_num = str(match.group(1))
+      else:
+        season_num = '1'
+    else:
+      epi_html = html
+      season_num = '1'
+    
+    for a in epi_html.xpath('//ul[@id="clipDateList"]/li/a'):
+      episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
+      try:
+        episode_date = Datetime.ParseDate(a.xpath('./parent::li/@data-clip')[0], '%Y%m%d').date()
+      except: continue
+      if not episode_num: continue    # 시청지도서
+      date_based_season_num = episode_date.year
+      date_based_episode_num = episode_date.strftime('%Y-%m-%d')
+      if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
+          (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
+        page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
+        episode = metadata.seasons[season_num].episodes[episode_num]
+        subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
+        episode.summary = '\n'.join(txt.strip() for txt in page.xpath('//p[@class="episode_desc"]/text()')).strip()
+        episode.originally_available_at = episode_date
+        episode.title = subtitle[0] if subtitle else date_based_episode_num
+        episode.rating = None
 
-      if directors:
-        episode.directors.clear()
-        for director in directors:
-          meta_director = episode.directors.new()
-          if 'name' in director:
-            meta_director.name = director['name']
-          if 'photo' in director:
-            meta_director.photo = director['photo']
-      if writers:
-        episode.writers.clear()
-        for writer in writers:
-          meta_writer = episode.writers.new()
-          if 'name' in writer:
-            meta_writer.name = writer['name']
-          if 'photo' in writer:
-            meta_writer.photo = writer['photo']
+        if directors:
+          episode.directors.clear()
+          for director in directors:
+            meta_director = episode.directors.new()
+            if 'name' in director:
+              meta_director.name = director['name']
+            if 'photo' in director:
+              meta_director.photo = director['photo']
+        if writers:
+          episode.writers.clear()
+          for writer in writers:
+            meta_writer = episode.writers.new()
+            if 'name' in writer:
+              meta_writer.name = writer['name']
+            if 'photo' in writer:
+              meta_writer.photo = writer['photo']
 
   # TV검색 > TV정보 > 공식홈
   home = html.xpath(u'//a[span[contains(.,"공식홈")]]/@href')
