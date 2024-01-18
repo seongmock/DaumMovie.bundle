@@ -370,8 +370,12 @@ def updateDaumTV(metadata, media):
   try:
 
     season_search = False
-    if any([season != '1' for season in media.seasons]):
-      season_search = True
+    for season in media.seasons:
+      if season != '1':
+        season_search = True
+
+    # if any([season != '1' for season in media.seasons]):
+      
 
     #Series Search
     if season_search: 
