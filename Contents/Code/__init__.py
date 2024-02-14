@@ -536,7 +536,7 @@ def updateDaumTV(metadata, media):
         subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
         episode.summary = '\n'.join(txt.strip() for txt in page.xpath('//p[@class="episode_desc"]/text()')).strip()
         episode.originally_available_at = episode_date
-        episode.title = subtitle[0] if subtitle else date_based_episode_num
+        episode.title = subtitle[0] if subtitle else str(episode_num)+'화'
         episode.rating = None
         thumbs_url = originalImageUrlFromCdnUrl(page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@src')[0])
         if thumbs_url not in episode.thumbs:
