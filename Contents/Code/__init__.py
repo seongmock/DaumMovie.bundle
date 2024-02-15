@@ -539,8 +539,9 @@ def updateDaumTV(metadata, media):
         epinum_subtitle = "제 %s화"%episode_num
         episode.title = subtitle[0] if subtitle else epinum_subtitle
         episode.rating = None
-        thumbs_url = originalImageUrlFromCdnUrl(page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@src')[0])
-        if thumbs_url not in episode.thumbs:
+        thumbs_url = page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@src')
+        thumbs_url = originalImageUrlFromCdnUrl(thumbs_url[0]) if len(thumbs_url) > 0 else None
+        if thumbs_url is not None and thumbs_url not in episode.thumbs:
           try: episode.thumbs[thumbs_url] = Proxy.Preview(HTTP.Request(thumbs_url, cacheTime=0), sort_order = len(episode.thumbs) + 1)
           except Exception, e: Log(str(e))
 
