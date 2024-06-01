@@ -460,7 +460,7 @@ def updateDaumTV(metadata, media):
       role = item.xpath('./span[@class="sub_name"]/text()')[0].strip().replace(u'이전 ', '')
       cast = dict()
       cast['name'] = item.xpath('./span[@class="txt_name"]/a/text()')[0]
-      cast['photo'] = item.xpath('./div/a/img/@src')[0]
+      cast['photo'] = item.xpath('./div/a/img/@data-original-src')[0]
       if role in [u'감독', u'연출', u'조감독']:
         directors.append(cast)
       elif role in [u'제작', u'프로듀서', u'책임프로듀서', u'기획']:
