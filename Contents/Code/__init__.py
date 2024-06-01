@@ -442,7 +442,7 @@ def updateDaumTV(metadata, media):
     # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
     # poster_url = urlparse.parse_qs(urlparse.urlparse(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).query)['fname'][0]
     # poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
-    poster_url = originalImageUrlFromCdnUrl(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0])
+    poster_url = originalImageUrlFromCdnUrl(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@data-original-src')[0])
     if poster_url not in metadata.posters:
       metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.posters) + 1)
   except Exception as e:
@@ -510,7 +510,7 @@ def updateDaumTV(metadata, media):
       else:
         season_num = '1'
 
-      poster_url = originalImageUrlFromCdnUrl(epi_html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0])
+      poster_url = originalImageUrlFromCdnUrl(epi_html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@data-original-src')[0])
       if media is None or season_num in media.seasons:
         if poster_url not in metadata.seasons[season_num].posters:
           try: metadata.seasons[season_num].posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.seasons[season_num].posters) + 1)
@@ -539,7 +539,8 @@ def updateDaumTV(metadata, media):
         epinum_subtitle = "제 %s화"%episode_num
         episode.title = subtitle[0] if subtitle else epinum_subtitle
         episode.rating = None
-        thumbs_url = page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@src')
+        thumbs_url = page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@data-original-src')
+        
         thumbs_url = originalImageUrlFromCdnUrl(thumbs_url[0]) if len(thumbs_url) > 0 else None
         if thumbs_url is not None and thumbs_url not in episode.thumbs:
           try: episode.thumbs[thumbs_url] = Proxy.Preview(HTTP.Request(thumbs_url, cacheTime=0), sort_order = len(episode.thumbs) + 1)
