@@ -11,7 +11,8 @@ DAUM_MOVIE_CAST   = "https://movie.daum.net/api/movie/%s/crew"
 DAUM_MOVIE_PHOTO  = "https://movie.daum.net/api/movie/%s/photoList?page=1&size=100"
 
 DAUM_TV_SRCH      = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=TVP"
-DAUM_TV_DETAIL    = "https://search.daum.net/search?w=%s&q=%s&irk=%s&irt=tv-program&DA=TVP"
+DAUM_TV_DETAIL    = "https://search.daum.net/search?w=%s&q=%s&spId=%s&spt=tv-info&DA=TVP"
+DAUM_TV_EPISODE   = "https://search.daum.net/search?w=%s&q=%s&spId=%s&coll=tv-episode&spt=tv-episode&DA=TVP"
 
 IMDB_TITLE_SRCH   = "http://www.google.com/search?q=site:imdb.com+%s"
 TVDB_TITLE_SRCH   = "http://thetvdb.com/api/GetSeries.php?seriesname=%s"
@@ -173,23 +174,35 @@ def searchDaumTV(results, media, lang):
     return
 
   items = []
-  title, id = Regex('q=(.*?)&irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1, 2)
+  #title, id = Regex('q=(.*?)&irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1, 2)
+  #Log.Debug(tvp.xpath('//div[@class="area_tit"]//a/@href'))
+  title = Regex('&q=([^&]*)').search(tvp.xpath('.//div[@class="area_tit"]//a/@href')[0]).group(1)
+  id = Regex('&spId=(\d+)').search(tvp.xpath('.//div[@class="area_tit"]//a/@href')[0]).group(1)
   title = urllib.unquote(title)
   try:
-    year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
+    texts = tvp.xpath('.//div[@class="sub_header"]//span[@class="txt-split"]')
+    for text in texts:
+      year = Regex('(\d{2})\.\d+\.\d+\.\s*~').search(text.text)
+      if year is not None:
+        year = '20'+year.group(1)
+        break
+    #year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('.//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
   except: year = None
   items.append({ 'id': id, 'title': title, 'year': year })
+  #Log.Debug({ 'id': id, 'title': title, 'year': year })
 
   # TV검색 > 시리즈
-  more_a = tvp.xpath(u'//a[span[.="시리즈 더보기"]]')
+  more_a = tvp.xpath(u'.//a[.="시리즈"]')
   if more_a:
     html = HTML.ElementFromURL('https://search.daum.net/search%s' % more_a[0].get('href'))
-    for li in html.xpath('//div[@id="series"]//li'):
+    season_item = html.xpath('.//div[@class="pdt2"]//li')
+    for li in season_item:
       a = li.xpath('.//a')[1]
-      id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+      id = Regex('spId=(\d+)').search(a.get('href')).group(1)
       title = a.text
       try:
-        year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
+        #Log.Debug(li.xpath('.//span')[0].text)
+        year = Regex('(\d{4})\.\d+').search(li.xpath('.//span')[0].text).group(1)
         items.append({ 'id': id, 'title': title, 'year': year })
       except: pass
   else:
@@ -203,22 +216,32 @@ def searchDaumTV(results, media, lang):
       except: pass
 
   # TV검색 > 동명 콘텐츠
-  spans = tvp.xpath(u'//div[contains(@class,"coll_etc")]//span[.="(동명프로그램)"]')
-  for span in spans:
+  dm_items= tvp.xpath(u'//div[contains(@class,"cont_pannel")]//strong[.="동명프로그램"]/following-sibling::div[1]//div[@class="c-item-content"]')
+  #Log.Debug("동명")
+  #Log.Debug(dm_items)
+  for item in dm_items:
     try:
-      year = Regex('(\d{4})').search(span.xpath('./preceding-sibling::span[1]')[0].text).group(1)
+      #Log.Debug(item.xpath('.//dd[@class="program"]/text()[2]')[0])
+      year = Regex(', (\d{4})\.').search(item.xpath('.//dd[@class="program"]/text()[2]')[0]).group(1)
     except: year = None
-    a = span.xpath('./preceding-sibling::a[1]')[0]
-    id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+    a = item.xpath('.//a')[1]
+    id = Regex('spId=(\d+)').search(a.get('href')).group(1)
     title = a.text.strip()
+    Log.Debug(title)
     items.append({ 'id': id, 'title': title, 'year': year })
 
+
+  id_hist = []
+
   for idx, item in enumerate(items):
-    score = int(levenshteinRatio(media_name, item['title']) * 90)
-    if media_year and item['year']:
-      score += (2 - min(2, abs(int(media_year) - int(item['year'])))) * 5
-    Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
-    results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
+    if item['id'] not in id_hist:
+
+      score = int(levenshteinRatio(media_name, item['title']) * 90)
+      if media_year and item['year']:
+        score += (2 - min(2, abs(int(media_year) - int(item['year'])))) * 5
+      Log.Debug('ID=%s, media_name=%s, title=%s, year=%s, score=%d' %(item['id'], media_name, item['title'], item['year'], score))
+      results.Append(MetadataSearchResult(id=item['id'], name=item['title'], year=item['year'], score=score, lang=lang))
+      id_hist.append(item['id'])
 
 def updateDaumMovie(metadata):
   # (1) from detail page
@@ -366,6 +389,194 @@ def updateDaumMovie(metadata):
   Log.Debug('Total %d posters, %d artworks' %(len(metadata.posters), len(metadata.art)))
 
 def updateDaumTV(metadata, media):
+
+  # TV검색
+  html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id))
+  try:
+    tvp = html.xpath('//div[@id="tvpColl"]')[0]
+  except:
+    Log.Debug('No TV matches found')
+    return
+  # TV 쇼 전체 정보
+  try:
+    Log.Debug("TV: %s" %(media.title))
+    metadata.title = media.title
+    metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
+    metadata.original_title = ''
+    metadata.rating = None
+    metadata.genres.clear()
+  #Summay 
+    metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//strong[.="줄거리"]/following-sibling::p/text()')[0]).strip())
+    Log.Debug(metadata.summary)
+    #Studio
+    metadata.studio = html.xpath('//dd[@class="program"]//a/text()')[0]
+    Log.Debug(metadata.studio)
+
+    #Poster    
+    poster_ele = tvp.xpath('.//div[@class="wrap_thumb"]//img')[0]
+    poster_url = originalImageUrlFromCdnUrl(poster_ele.get('data-original-src'))
+    if poster_url not in metadata.posters:
+      metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.posters) + 1)
+  except Exception as e:
+    Log.Debug(repr(e))
+    pass
+
+
+  # 출연진 및 제작진 
+  try:
+    cast_ele = tvp.xpath(u'.//a[.="출연"]')[0] 
+    cast_html = HTML.ElementFromURL('https://search.daum.net/search%s' % cast_ele.get('href'))
+    
+    directors = list()
+    producers = list()
+    writers = list()
+    roles = list()
+
+    for item in cast_html.xpath(u'//div[@class="pdt2" and @data-tab="제작"]/ul/li'):
+      role = item.xpath('.//div[@class="item-contents"]/span/text()')[0].strip().replace(u'이전 ', '')
+      cast = dict()
+      cast['name'] = item.xpath('.//div[@class="item-title"]/span/text()')[0]
+      cast['photo'] = item.xpath('.//img/@data-original-src')[0]
+      #Log.Debug(cast)
+      #Log.Debug(role)
+      if role in [u'감독', u'연출', u'조감독']:
+        directors.append(cast)
+      elif role in [u'제작', u'프로듀서', u'책임프로듀서', u'기획']:
+        producers.append(cast)
+      elif role in [u'극본', u'각본', u'원작', u'작가']:
+        writers.append(cast)
+      else:
+        Log('Unknown role %s' % role)
+
+    for item in cast_html.xpath(u'//div[@class="pdt2" and @data-tab="출연"]/ul/li'):
+      #Log.Debug(item)
+      cast = dict()
+      cast['name'] = ''.join(item.xpath('.//div[@class="item-title"]//text()')).strip()
+      cast['role'] = ''.join(item.xpath('.//div[@class="item-contents"]//text()')).strip()
+      cast['photo'] = originalImageUrlFromCdnUrl(item.xpath('.//img/@data-original-src')[0])
+      roles.append(cast)
+        #Log.Debug(cast)
+
+    if roles:
+      metadata.roles.clear()
+      for role in roles:
+        meta_role = metadata.roles.new()
+        if 'role' in role:
+          meta_role.role = role['role']
+        if 'name' in role:
+          meta_role.name = role['name']
+        if 'photo' in role:
+          meta_role.photo = role['photo']
+  except Exception as e:
+    Log.Debug(repr(e))
+    pass
+
+  # 시리즈 여부 검색
+  season_info = []
+  try:
+    if len(media.seasons) == 1 and '1' in media.seasons:
+      texts = tvp.xpath('.//div[@class="sub_header"]//span[@class="txt-split"]')
+      for text in texts:
+        year = Regex('(\d{2})\.\d+\.\d+\.\s*~').search(text.text)
+        if year is not None:
+          year = '20'+year.group(1)
+          break
+      season_info.append({'id': metadata.id, 'title': media.title, 'season': '1', 'year': year, 'href': DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id) })
+    else:
+      more_a = tvp.xpath(u'.//a[.="시리즈"]')[0]
+      Log.Debug("시리즈 %s"%more_a.get('href'))
+      Log.Debug(more_a)
+      if more_a is not None:
+        Log.Debug("Start Series")
+        epi_html = HTML.ElementFromURL('https://search.daum.net/search%s' % more_a.get('href'))
+        season_items = epi_html.xpath('.//div[@class="pdt2"]//li')
+        Log.Debug(season_items)
+        for season_item in season_items:
+          a = season_item.xpath('.//a')[1]
+          id = Regex('spId=(\d+)').search(a.get('href')).group(1)
+          title = a.text
+          season_num = Regex('(\d+)\s*$').search(title)
+          season_num = str(season_num.group(1)) if season_num is not None else '1'
+          year = Regex('(\d{4})\.\d+').search(season_item.xpath('.//span')[0].text).group(1)
+          season_info.append({ 'id': id, 'title': title, 'season': season_num, 'year': year, 'href': 'https://search.daum.net/search%s'%a.get('href') })
+  except Exception as e:
+    Log.Debug(repr(e))
+    if len(season_info) == 0:
+      texts = tvp.xpath('.//div[@class="sub_header"]//span[@class="txt-split"]')
+      for text in texts:
+        year = Regex('(\d{2})\.\d+\.\d+\.\s*~').search(text.text)
+        if year is not None:
+          year = '20'+year.group(1)
+          break
+      season_info.append({'id': metadata.id, 'title': media.title, 'season': '1', 'year': year, 'href': DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id) })
+    pass
+  Log.Debug(season_info)
+
+  # Episode 개별 정보
+  for season in media.seasons:
+    for season_item in season_info:
+      try:
+        if season_item['season'] == season:
+          Log.Debug("Season: %s" %(season))
+          season_html = HTML.ElementFromURL(season_item['href'])
+          poster_ele = season_html.xpath('//div[@id="tvpColl"]//div[@class="wrap_thumb"]//img')[0]
+          poster_url = originalImageUrlFromCdnUrl(poster_ele.get('data-original-src'))
+          if poster_url not in metadata.seasons[season].posters:
+            try:
+              metadata.seasons[season].posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order=len(metadata.seasons[season].posters) + 1)
+            except Exception as e:
+              Log(str(e))
+
+          tab_ele = season_html.xpath(u'.//a[.="회차"]')[0] 
+          episode_html = HTML.ElementFromURL('https://search.daum.net/search%s' % tab_ele.get('href'))
+          episode_list = episode_html.xpath('.//q-select//option')
+          episode_list = {ele.get('value').replace('회', ''): ele.get('data-sp-id') for ele in episode_list}
+
+          for episode_num in media.seasons[season].episodes:
+            try:
+              Log.Debug("Episode: %s" %(episode_num))
+              page = HTML.ElementFromURL(DAUM_TV_EPISODE % ('tv', urllib.quote(media.title.encode('utf8')) + urllib.quote(" " + str(episode_num) + "회"), episode_list[str(episode_num)]))
+              episode = metadata.seasons[season].episodes[episode_num]
+              episode.summary = page.xpath('.//p[@class="desc_story"]/text()')[0].strip()
+              tit_ele = page.xpath('.//strong[@class="tit_story"]')
+              if len(tit_ele)>0 and tit_ele[0].text is not None:
+                episode.title = tit_ele[0].text.strip()
+              episode.rating = None
+              thumbs_url = page.xpath('.//div[@class="player_sch"]//img/@data-original-src')
+              thumbs_url = originalImageUrlFromCdnUrl(thumbs_url[0]) if len(thumbs_url) > 0 else None
+              if thumbs_url is not None and thumbs_url not in episode.thumbs:
+                try:
+                  episode.thumbs[thumbs_url] = Proxy.Preview(HTTP.Request(thumbs_url, cacheTime=0), sort_order=len(episode.thumbs) + 1)
+                except Exception as e:
+                  Log(str(e))
+
+              episode_date = page.xpath(u'.//span[.="방영일"]/../text()')[0].strip()
+              episode_date = episode_date.rsplit('.', 1)[0]
+              episode_date = Datetime.ParseDate(episode_date, '%Y.%m.%d').date()
+              episode.originally_available_at = episode_date
+
+              if directors:
+                episode.directors.clear()
+                for director in directors:
+                  meta_director = episode.directors.new()
+                  if 'name' in director:
+                    meta_director.name = director['name']
+                  if 'photo' in director:
+                    meta_director.photo = director['photo']
+              if writers:
+                episode.writers.clear()
+                for writer in writers:
+                  meta_writer = episode.writers.new()
+                  if 'name' in writer:
+                    meta_writer.name = writer['name']
+                  if 'photo' in writer:
+                    meta_writer.photo = writer['photo']
+            except Exception as e:
+              Log(str(e))
+      except Exception as e:
+        Log(str(e))
+
+  return
   # (1) from detail page
   try:
 
@@ -390,36 +601,38 @@ def updateDaumTV(metadata, media):
         return
 
       season_items = []
-      title, id = Regex('q=(.*?)&irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1, 2)
+      #title, id = Regex('q=(.*?)&irk=(\d+)').search(tvp.xpath('//a[@class="tit_info"]/@href')[-1]).group(1, 2)
+      title = Regex('&q=([^&]*)').search(tvp.xpath('//div[@class="area_tit"]//a/@href')[0]).group(1)
+      id = Regex('&spId=(\d+)').search(tvp.xpath('//div[@class="area_tit"]//a/@href')[0]).group(1)
       title = urllib.unquote(title)
       try:
-        year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
+        texts = tvp.xpath('//div[@class="sub_header"]//span[@class="txt-split"]')
+        for text in texts:
+          year = Regex('(\d{2})\.\d+\.\d+\.\s*~').search(text.text)
+          if year is not None:
+            year = '20'+year.group(1)
+            break
+        #year = Regex('(\d{4})\.\d+\.\d+~').search(tvp.xpath('//div[@class="head_cont"]//span[@class="txt_summary"][last()]')[0].text).group(1)
       except: year = None
       season_items.append({ 'id': id, 'title': title, 'year': year })
 
       # TV검색 > 시리즈
-      more_a = tvp.xpath(u'//a[span[.="시리즈 더보기"]]')
+      more_a = tvp.xpath(u'.//a[.="시리즈"]')
       if more_a:
         html = HTML.ElementFromURL('https://search.daum.net/search%s' % more_a[0].get('href'))
-        for li in html.xpath('//div[@id="series"]//li'):
-          a = li.xpath('.//a')[1]
-          id = Regex('irk=(\d+)').search(a.get('href')).group(1)
+        season_item = html.xpath('.//div[@class="pdt2"]//li')
+        for season_item in season_item:
+          a = season_item.xpath('.//a')[1]
+          id = Regex('spId=(\d+)').search(a.get('href')).group(1)
           title = a.text
           try:
-            year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
-            season_items.append({ 'id': id, 'title': title, 'year': year })
-          except: pass
-      else:
-        lis = tvp.xpath('//div[@id="tv_series"]//li')
-        for li in lis:
-          id = Regex('irk=(\d+)').search(li.xpath('./a/@href')[0]).group(1)
-          title = li.xpath('./a')[0].text
-          try:
-            year = Regex('(\d{4})\.\d+').search(li.xpath('./span')[0].text).group(1)
-            season_items.append({ 'id': id, 'title': title, 'year': year })
+            #Log.Debug(li.xpath('.//span')[0].text)
+            year = Regex('(\d{4})\.\d+').search(season_item.xpath('.//span')[0].text).group(1)
+            items.append({ 'id': id, 'title': title, 'year': year })
           except: pass
 
     html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), metadata.id))
+    tvp = html.xpath('//div[@id="tvpColl"]')[0]
     #metadata.title = html.xpath('//div[@class="tit_program"]/strong')[0].text
     metadata.title = media.title
     metadata.title_sort = unicodedata.normalize('NFKD' if Prefs['use_title_decomposition'] else 'NFKC', metadata.title)
@@ -427,22 +640,22 @@ def updateDaumTV(metadata, media):
     metadata.rating = None
     metadata.genres.clear()
     # 드라마 (24부작)
-    metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
-    spans = html.xpath('//div[@class="txt_summary"]/span')
-    if not spans:
-      tot = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tot', urllib.quote(media.title.encode('utf8')), metadata.id))
-      spans = tot.xpath('//div[@class="summary_info"]/*[@class="txt_summary"]')
-    if spans:
-      metadata.studio = spans[0].text
-      match = Regex('(\d+\.\d+\.\d+)~(\d+\.\d+\.\d+)?').search(spans[-1].text or '')
-      if match:
-        metadata.originally_available_at = Datetime.ParseDate(match.group(1)).date()
-    metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//dt[.="소개"]/following-sibling::dd')[0].text).strip())
+    #metadata.genres.add(Regex(u'(.*?)(?:\u00A0(\(.*\)))?$').search(html.xpath(u'//dt[.="장르"]/following-sibling::dd/text()')[0]).group(1))
 
-    # //search1.kakaocdn.net/thumb/C232x336.q85/?fname=http%3A%2F%2Ft1.daumcdn.net%2Fcontentshub%2Fsdb%2Ff63c5467710f5669caac131943855dfea31011003e57e674832fe8b16b946aa8
-    # poster_url = urlparse.parse_qs(urlparse.urlparse(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).query)['fname'][0]
-    # poster_url = urllib.unquote(Regex('fname=(.*)').search(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@src')[0]).group(1))
-    poster_url = originalImageUrlFromCdnUrl(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@data-original-src')[0])
+    #Summay 
+    #Log.Debug(html.xpath(u'//strong[.="줄거리"]/following-sibling::p/text()'))
+    metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//strong[.="줄거리"]/following-sibling::p/text()')[0]).strip())
+    #Log.Debug(metadata.summary)
+    #metadata.summary = String.DecodeHTMLEntities(String.StripTags(html.xpath(u'//dt[.="소개"]/following-sibling::dd')[0].text).strip())
+
+    #Studio
+    metadata.studio = html.xpath('//dd[@class="program"]//a/text()')[0]
+    Log.Debug(metadata.studio)
+
+    #Poster    
+    poster_ele = tvp.xpath('.//div[@class="wrap_thumb"]//img')[0]
+    poster_url = originalImageUrlFromCdnUrl(poster_ele.get('data-original-src'))
+    #poster_url = originalImageUrlFromCdnUrl(html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@data-original-src')[0])
     if poster_url not in metadata.posters:
       metadata.posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.posters) + 1)
   except Exception as e:
@@ -450,40 +663,41 @@ def updateDaumTV(metadata, media):
     pass
 
   # (2) cast crew
+  cast_ele = tvp.xpath(u'.//a[.="출연"]')[0] 
+  html = HTML.ElementFromURL('https://search.daum.net/search%s' % cast_ele.get('href'))
+  
   directors = list()
   producers = list()
   writers = list()
   roles = list()
 
-  for item in html.xpath('//div[@class="wrap_col lst"]/ul/li'):
+  for item in html.xpath(u'//div[@class="pdt2" and @data-tab="제작"]/ul/li'):
     try:
-      role = item.xpath('./span[@class="sub_name"]/text()')[0].strip().replace(u'이전 ', '')
+      role = item.xpath('.//div[@class="item-contents"]/span/text()')[0].strip().replace(u'이전 ', '')
       cast = dict()
-      cast['name'] = item.xpath('./span[@class="txt_name"]/a/text()')[0]
-      cast['photo'] = item.xpath('./div/a/img/@data-original-src')[0]
+      cast['name'] = item.xpath('.//div[@class="item-title"]/span/text()')[0]
+      cast['photo'] = item.xpath('.//img/@data-original-src')[0]
+      #Log.Debug(cast)
+      #Log.Debug(role)
       if role in [u'감독', u'연출', u'조감독']:
         directors.append(cast)
       elif role in [u'제작', u'프로듀서', u'책임프로듀서', u'기획']:
         producers.append(cast)
-      elif role in [u'극본', u'각본', u'원작']:
+      elif role in [u'극본', u'각본', u'원작', u'작가']:
         writers.append(cast)
       else:
         Log('Unknown role %s' % role)
     except: pass
 
-  for item in html.xpath('//div[@class="wrap_col castingList"]/ul/li'):
+  for item in html.xpath(u'//div[@class="pdt2" and @data-tab="출연"]/ul/li'):
+    #Log.Debug(item)
     try:
       cast = dict()
-      a = item.xpath('./span[@class="sub_name"]/a')
-      if a:
-        cast['name'] = a[0].text
-        cast['role'] = item.xpath('./span[@class="txt_name"]/a')[0].text
-        cast['photo'] = originalImageUrlFromCdnUrl(item.xpath('./div/a/img/@data-original-src')[0])
-      else:
-        cast['name'] = item.xpath('./span[@class="txt_name"]/a')[0].text
-        cast['role'] = item.xpath('./span[@class="sub_name"]')[0].text.strip()
-        cast['photo'] = originalImageUrlFromCdnUrl(item.xpath('./div/a/img/@data-original-src')[0])
+      cast['name'] = ''.join(item.xpath('.//div[@class="item-title"]//text()')).strip()
+      cast['role'] = ''.join(item.xpath('.//div[@class="item-contents"]//text()')).strip()
+      cast['photo'] = originalImageUrlFromCdnUrl(item.xpath('.//img/@data-original-src')[0])
       roles.append(cast)
+      #Log.Debug(cast)
     except: pass
 
   if roles:
@@ -497,9 +711,10 @@ def updateDaumTV(metadata, media):
       if 'photo' in role:
         meta_role.photo = role['photo']
 
+  season_num='1'
   # (4) from episode page
   if not season_search:
-    season_items = [{"id":"No search"}]
+    season_items = [{"id":metadata.id}]
   for season_item in season_items:
     if season_search:
       epi_html = HTML.ElementFromURL(DAUM_TV_DETAIL % ('tv', urllib.quote(media.title.encode('utf8')), season_item['id']))
@@ -510,7 +725,8 @@ def updateDaumTV(metadata, media):
       else:
         season_num = '1'
 
-      poster_url = originalImageUrlFromCdnUrl(epi_html.xpath('//div[@class="info_cont"]/div[@class="wrap_thumb"]/a/img/@data-original-src')[0])
+      poster_ele = epi_html.xpath('//div[@id="tvpColl"]//div[@class="wrap_thumb"]//img')[0]
+      poster_url = originalImageUrlFromCdnUrl(poster_ele.get('data-original-src'))
       if media is None or season_num in media.seasons:
         if poster_url not in metadata.seasons[season_num].posters:
           try: metadata.seasons[season_num].posters[poster_url] = Proxy.Preview(HTTP.Request(poster_url, cacheTime=0), sort_order = len(metadata.seasons[season_num].posters) + 1)
@@ -519,300 +735,61 @@ def updateDaumTV(metadata, media):
     else:
       epi_html = html
       season_num = '1'
-    
-    for a in epi_html.xpath('//ul[@id="clipDateList"]/li/a'):
-      episode_num = a.xpath(u'substring-before(./span[@class="txt_episode"],"회")')
+
+    #Episode Info
+      Log.Debug("Debug")
+      Log.Debug(media.seasons[season_num].episodes)
+
       try:
-        episode_date = Datetime.ParseDate(a.xpath('./parent::li/@data-clip')[0], '%Y%m%d').date()
-      except: continue
-      if not episode_num: continue    # 시청지도서
-      date_based_season_num = episode_date.year
-      date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-      if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-          (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-        # Log.Debug("Hit: %s %s %s" %(season_item['title'], season_num, episode_num))
-        page = HTML.ElementFromURL('https://search.daum.net/search' + a.get('href'))
-        episode = metadata.seasons[season_num].episodes[episode_num]
-        subtitle = page.xpath('//p[@class="episode_desc"]/strong/text()')
-        episode.summary = '\n'.join(txt.strip() for txt in page.xpath('//p[@class="episode_desc"]/text()')).strip()
-        episode.originally_available_at = episode_date
-        epinum_subtitle = "제 %s화"%episode_num
-        episode.title = subtitle[0] if subtitle else epinum_subtitle
-        episode.rating = None
-        thumbs_url = page.xpath('//div[@class="wrap_player"]/div[@class="wrap_thumb"]/a/img/@data-original-src')
-        
-        thumbs_url = originalImageUrlFromCdnUrl(thumbs_url[0]) if len(thumbs_url) > 0 else None
-        if thumbs_url is not None and thumbs_url not in episode.thumbs:
-          try: episode.thumbs[thumbs_url] = Proxy.Preview(HTTP.Request(thumbs_url, cacheTime=0), sort_order = len(episode.thumbs) + 1)
-          except Exception, e: Log(str(e))
+        tab_ele = html.xpath(u'.//a[.="회차"]')[0] 
+        html = HTML.ElementFromURL('https://search.daum.net/search%s' % tab_ele.get('href'))
+        episode_list = html.xpath('.//q-select//option')
+        episode_list = {ele.get('value').replace('회',''): ele.get('data-sp-id') for ele in episode_list}
+      except:
+        episode_list = {}
+      #Log.Debug(episode_list)
 
-        if directors:
-          episode.directors.clear()
-          for director in directors:
-            meta_director = episode.directors.new()
-            if 'name' in director:
-              meta_director.name = director['name']
-            if 'photo' in director:
-              meta_director.photo = director['photo']
-        if writers:
-          episode.writers.clear()
-          for writer in writers:
-            meta_writer = episode.writers.new()
-            if 'name' in writer:
-              meta_writer.name = writer['name']
-            if 'photo' in writer:
-              meta_writer.photo = writer['photo']
-
-  # TV검색 > TV정보 > 공식홈
-  home = html.xpath(u'//a[span[contains(.,"공식홈")]]/@href')
-  if home:
-    if 'www.imbc.com' in home[0]:
-      page = HTML.ElementFromURL(home[0])
-      for prv in page.xpath('//div[@class="roll-ban-event"]/ul/li/img/@src'):
-        if prv not in metadata.art:
-          try: metadata.art[prv] = Proxy.Preview(HTTP.Request(prv, cacheTime=0), sort_order = len(metadata.art) + 1)
-          except Exception as e: Log(str(e))
-
-  # TV검색 > TV정보 > 다시보기
-  vod = html.xpath(u'//a[span[contains(.,"다시보기")]]/@href')
-  if vod:
-    replay_url = vod[0]
-  else:
-    if home and 'program.kbs.co.kr' in home[0]:
-      # 카카오VOD > http://program.kbs.co.kr/2tv/drama/dramaspecial2018/pc/list.html?smenu=c2cc5a
-      replay_url = home[0] + 'list.html?smenu=c2cc5a'
-    else:
-      replay_url = None
-      if metadata.studio and Regex('MBC|SBS|KBS|EBS').match(metadata.studio):
-        Log.Debug('No replay URL for [%s] %s' % (metadata.studio, metadata.title))
-
-  if replay_url:
-    if 'www.imbc.com' in replay_url:
-      try:
-        prog_codes = []
-        # http://www.imbc.com/broad/tv/ent/challenge/vod/index.html
-        page = HTML.ElementFromURL(replay_url)
-        prog_codes.append(Regex('var progCode = "(.*?)";').search(page.xpath('//script[contains(.,"var progCode = ")]/text()')[0]).group(1))
-        # for season_vod in page.xpath('//map[@name="vod"]/area/@href'):
-        #   # http://www.imbc.com/broad/tv/ent/challenge/vod1/
-        #   # http://www.imbc.com/broad/tv/ent/challenge/vod2/
-        #   page = HTML.ElementFromURL(season_vod)
-        #   prog_codes.append(Regex('var progCode = "(.*?)";').search(page.xpath('//script[contains(.,"var progCode = ")]/text()')[0]).group(1))
-        for prog_code in prog_codes:
-          page = HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_sbox.aspx?kind=image&progCode=%s' % prog_code).content
-          years = Regex("<option value='(\d+)'>").findall(page)
-          for year in years:
-            page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_sbox_contents.aspx?progCode=%s&yyyy=%s&callback=jQuery1123011760857070017172_1538059867383&_=1538059867389'
-                % (prog_code, year)).content, 'euc-kr')
-            bcasts = JSON.ObjectFromString(Regex('jQuery1123011760857070017172_1538059867383\((.*)\)$').search(page).group(1))
-            for bcast in bcasts:
-              # if u'특집' in bcast['ContentNumber'] or u'스페셜' in bcast['ContentNumber']:   # 특집05회, 특집회, 추석특집회, 스페셜회
-              #   # Log('ignoring %s' % bcast['ContentNumber'])
-              #   continue
-              season_num = '1'
-              episode_date = Datetime.ParseDate(bcast['BroadDate'], '%Y-%m-%d').date()
-              match = Regex(u'^(\d+(-\d+)?)회$').search(bcast['ContentNumber'])  # 7-8회, 1회
-              if match:
-                for episode_num in match.group(1).split('-'):
-                  date_based_season_num = episode_date.year
-                  date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-                  if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-                      (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-                    episode = metadata.seasons[season_num].episodes[episode_num]
-                    if episode.summary and u'회차정보가 없습니다' not in episode.summary:
-                      continue
-                    page = unicode(HTTP.Request('http://vodmall.imbc.com/util/wwwUtil_json.aspx?kind=image&progCode=%s&callback=jQuery111104041909438012061_1538031601249&_=1538031601252'
-                        % bcast['BroadCastID']).content, 'euc-kr')
-                    info = JSON.ObjectFromString(Regex('jQuery111104041909438012061_1538031601249\((.*)\)$').search(page).group(1))[0]
-                    episode.summary = info['Content'].replace('\r\n', '\n').replace('<br><br>', '\n').replace('<br>', '').strip()
-                    episode.originally_available_at = episode_date
-                    episode.title = info['Title']
-                    episode.rating = None
-      except Exception as e:
-        Log.Debug(repr(e))
-        pass
-
-    elif 'programs.sbs.co.kr' in replay_url:
-      try:
-        # http://programs.sbs.co.kr/enter/jungle/vods/50479
-        programcd, mnuid = Regex('programs\.sbs\.co\.kr/(.+?)/(.+?)/vods/(.+)$').search(replay_url).group(2, 3)
-
-        # http://static.apis.sbs.co.kr/program-api/1.0/menu/jungle
-        menu = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/program-api/1.0/menu/%s' % programcd)
-
-        shareimg = menu['program']['shareimg'].replace('_w640_h360', '_ori')
-        if shareimg.startswith('//'):
-          shareimg = 'http:' + shareimg
-        if shareimg not in metadata.art:
-          try: metadata.art[shareimg] = Proxy.Preview(HTTP.Request(shareimg, cacheTime=0), sort_order = len(metadata.art) + 1)
-          except Exception as e: Log(str(e))
-
-        # http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?...
-        vods = JSON.ObjectFromURL('http://static.apis.sbs.co.kr/play-api/1.0/sbs_vodalls?offset=%d&limit=%d&sort=new&search=&cliptype=&subcategory=&programid=%s&absolute_show=Y&mdadiv=01&viewcount=Y' %
-            ( 0, 2000, menu['program']['channelid'] + '_V' + menu['program']['programid'][-10:] ), max_size = JSON_MAX_SIZE)
-        for v in vods['list']:
-          # Log('%s %s-%s %s' % (v['broaddate'], v['content']['contentnumber'], v['content']['cornerid'], v['content']['contenttitle'] ))
-          if v['content']['cornerid'] != 0: # 스페셜
-            continue
-          season_num = '1'
-          episode_date = Datetime.ParseDate(v['broaddate'], '%Y-%m-%d').date()   # fix TZ
-          episode_nums = []
-          match = Regex(u'^\[(\d+)&(\d+)회차 통합본\]').search(v['synopsis'])
-          if match:
-            episode_nums.append(match.group(1))
-            episode_nums.append(match.group(2))
-          else:
-            episode_nums.append(v['content']['contentnumber'])
-          for episode_num in episode_nums:
-            date_based_season_num = episode_date.year
-            date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-            if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-                (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-              episode = metadata.seasons[season_num].episodes[episode_num]
-              if episode.summary and u'회차정보가 없습니다' not in episode.summary:
-                continue
-              episode.summary = String.DecodeHTMLEntities(String.StripTags(v['synopsis'])).strip()
-              episode.originally_available_at = episode_date
-              episode.title = v['content']['contenttitle'].strip()
-              episode.rating = None
-      except Exception as e:
-        Log.Debug(repr(e))
-        pass
-
-    elif 'program.kbs.co.kr' in replay_url:
-      try:
-        # http://program.kbs.co.kr/2tv/enter/gagcon/pc/list.html?smenu=c2cc5a
-        source, sname, stype, smenu = Regex('program.kbs.co.kr/(.+?)/(.+?)/(.+?)/pc/list.html\?smenu=(.+)$').search(replay_url).group(1, 2, 3, 4)
-
-        # http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=c2cc5a&source=2tv&sname=enter&stype=gagcon&page_type=list
-        menu = JSON.ObjectFromURL('http://pprogramapi.kbs.co.kr/api/v1/page?platform=P&smenu=%s&source=%s&sname=%s&stype=%s&page_type=list' %
-            ( smenu, source, sname, stype ))
-
-        image_h = menu['data']['site']['meta']['image_h']
-        if image_h not in metadata.posters:
-          try: metadata.posters[image_h] = Proxy.Preview(HTTP.Request(image_h, cacheTime=0), sort_order = len(metadata.posters) + 1)
-          except Exception as e: Log(str(e))
-
-        image_w = menu['data']['site']['meta']['image_w']
-        if image_w not in metadata.art:
-          try: metadata.art[image_w] = Proxy.Preview(HTTP.Request(image_w, cacheTime=0), sort_order = len(metadata.art) + 1)
-          except Exception as e: Log(str(e))
-
-        page = 1
-        while True:
-          # https://ummsapi.kbs.co.kr/landing/contents/episode/list?rtype=jsonp&sort_option=rdatetime%20desc&program_code=T2000-0065&page=1&page_size=9&&callback=angular.callbacks._0
-          res = JSON.ObjectFromURL('https://ummsapi.kbs.co.kr/landing/contents/episode/list?rtype=json&sort_option=rdatetime%%20desc&program_code=%s&page=%d&page_size=%d' %
-              ( menu['data']['site']['meta']['program_code'], page, 500 ))
-          if 'error_msg' in res:
-            Log.Debug(res['error_msg'])
-            break
-
-          for v in res['data']:
-            # Log('%s %s %s' % (v['program_date'], v['program_number'], v['program_subtitle'] or v['description']))
-            if not v['program_number']:
-              continue
-            season_num = '1'
-            episode_num = v['program_number']
-            episode_date = Datetime.ParseDate(v['program_date'], '%Y%m%d').date()
-            date_based_season_num = episode_date.year
-            date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-            if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-                (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-              episode = metadata.seasons[season_num].episodes[episode_num]
-              if episode.summary and u'회차정보가 없습니다' not in episode.summary:
-                continue
-              episode.summary = v['program_summary']
-              episode.originally_available_at = episode_date
-              episode.title = v['program_subtitle'] or v['description'] or date_based_episode_num
-              episode.rating = None     # float(v['avg_rating'])
-
-          page += 1
-          if page > res['page_count']:
-            break
-
-      except Exception as e:
-        Log.Debug(repr(e))
-        pass
-
-    elif 'home.ebs.co.kr' in replay_url:
-      try:
-        # http://home.ebs.co.kr/bestdoctors/review
-        #  => http://home.ebs.co.kr/bestdoctors/replay/1/list;jsessionid=...?courseId=BP0PAPG0000000014&stepId=01BP0PAPG0000000014
-        # http://home.ebs.co.kr/baddog/replay/24/list?courseId=10016245&stepId=10035139
-        match = Regex('courseId=(.+)&stepId=(.+)').search(replay_url)
-        if match:
-          courseId, stepId = match.group(1, 2)
-          page = 1
-          while True:
-            html = HTML.ElementFromURL('https://www.ebs.co.kr/tv/show/vodListNew', values={
-                'courseId': courseId,
-                'stepId': stepId,
-                'lectId': '666',    # '10962899',
-                'vodStepNm': '',    # '세상에 나쁜 개는 없다 시즌3',
-                # 'srchType': '',
-                # 'srchText': '',
-                # 'srchYear': '',
-                # 'srchMonth': '',
-                'pageNum': page,
-                # 'vodProdId': ''
-            }, sleep = 0.5)
-            for a in html.xpath('//ul[@class="_playList"]/li//a'):
-              season_num = '1'
-              episode_date = Datetime.ParseDate(a.xpath('./span[@class="date"]')[0].text, '%Y.%m.%d').date()
-              match = Regex(u'^(\d+)회').search(a.text.strip())
-              if match:
-                episode_num = match.group(1)
-              else:
-                episode_num = episode_date.strftime('%y%m%d')
-              date_based_season_num = episode_date.year
-              date_based_episode_num = episode_date.strftime('%Y-%m-%d')
-              if ((season_num in media.seasons and episode_num in media.seasons[season_num].episodes) or
-                  (date_based_season_num in media.seasons and date_based_episode_num in media.seasons[date_based_season_num].episodes)):
-                episode = metadata.seasons[season_num].episodes[episode_num]
-                if episode.summary and u'회차정보가 없습니다' not in episode.summary:
-                  continue
-                # Log('E: S%s E%s %s %s' % (season_num, episode_num, episode_date, a.text.strip()))
-                show = HTML.ElementFromURL('https://www.ebs.co.kr/tv/show?prodId=&lectId=%s' % Regex('selVodList\(\'(\d+?)\'').search(a.get('href')).group(1), sleep = 0.5)
-                episode.summary = show.xpath('//p[@class="detail_story"]')[0].text.strip()
-                episode.originally_available_at = episode_date
-                episode.title = a.text.strip() or date_based_episode_num
-                episode.rating = None
-
-            page += 1
-            if page > min(20, int(''.join(html.xpath('//span[@class="pro_vod_page"]//text()')).strip().split(' / ')[1])):
-              break
-
-      except Exception as e:
-        Log.Debug(repr(e))
-        pass
-
-    elif 'www.tving.com' in replay_url:
-      try:
-        # https://www.tving.com/contents/P001641335
-        programCode = Regex('contents/(.+)$').search(replay_url).group(1)
-        response = JSON.ObjectFromURL(('https://api.tving.com/v2/media/frequency/program/%s?'
-            'order=new&screenCode=CSSD0100&networkCode=CSND0900&osCode=CSOD0900&teleCode=CSCD0900&apiKey=1e7952d0917d6aab1f0293a063697610&'
-            'cacheType=main&pageSize=20&&adult=all&free=all&guest=all&scope=all') % programCode)
-        for result in response['body']['result']:
-          episode = metadata.seasons['1'].episodes[str(result['episode']['frequency'])]
-          episode.summary = result['episode']['synopsis']['ko']
-          episode.originally_available_at = Datetime.ParseDate(str(result['episode']['broadcast_date']), '%Y%m%d').date()
-          episode.title = result['vod_name']['ko']
+      for episode_num in media.seasons[season_num].episodes:
+        try:
+          #Log.Debug("Episode %s search"%episode_num)
+          page = HTML.ElementFromURL(DAUM_TV_EPISODE % ('tv', urllib.quote(media.title.encode('utf8'))+urllib.quote(" "+str(episode_num)+"회"), episode_list[str(episode_num)]))
+          episode = metadata.seasons[season_num].episodes[episode_num]
+          episode.summary = page.xpath('.//p[@class="desc_story"]/text()')[0].strip()
+          #Log.Debug(episode.summary)
+          tit_ele = page.xpath('.//strong[@class="tit_story"]')
+          if tit_ele:
+            episode.title = tit_ele[0].text.strip()
           episode.rating = None
+          thumbs_url = page.xpath('.//div[@class="player_sch"]//img/@data-original-src')
+          thumbs_url = originalImageUrlFromCdnUrl(thumbs_url[0]) if len(thumbs_url) > 0 else None
+          if thumbs_url is not None and thumbs_url not in episode.thumbs:
+            try: episode.thumbs[thumbs_url] = Proxy.Preview(HTTP.Request(thumbs_url, cacheTime=0), sort_order = len(episode.thumbs) + 1)
+            except Exception, e: Log(str(e))
 
-      except Exception as e:
-        Log.Debug(repr(e))
-        pass
+          episode_date = page.xpath(u'.//span[.="방영일"]/../text()')[0].strip()
+          episode_date = episode_date.rsplit('.', 1)[0]
+          episode_date = Datetime.ParseDate(episode_date, '%Y.%m.%d').date()
+          episode.originally_available_at = episode_date 
 
-    else:
-      Log(replay_url)
+          if directors:
+            episode.directors.clear()
+            for director in directors:
+              meta_director = episode.directors.new()
+              if 'name' in director:
+                meta_director.name = director['name']
+              if 'photo' in director:
+                meta_director.photo = director['photo']
+          if writers:
+            episode.writers.clear()
+            for writer in writers:
+              meta_writer = episode.writers.new()
+              if 'name' in writer:
+                meta_writer.name = writer['name']
+              if 'photo' in writer:
+                meta_writer.photo = writer['photo']
+        except Exception, e: Log(str(e))
+  
 
-  #   # (5) fill missing info
-  #   # if Prefs['override_tv_id'] != 'None':
-  #   #   page = HTTP.Request(DAUM_TV_DETAIL2 % metadata.id).content
-  #   #   match = Regex('<em class="title_AKA"> *<span class="eng">([^<]*)</span>').search(page)
-  #   #   if match:
-  #   #     metadata.original_title = match.group(1).strip()
 
 ####################################################################################################
 class DaumMovieAgent(Agent.Movies):
