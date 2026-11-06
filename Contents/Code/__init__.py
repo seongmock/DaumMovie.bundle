@@ -1,7 +1,50 @@
 # -*- coding: utf-8 -*-
 # Daum Movie
 
-import urllib, unicodedata, os
+import urllib, unicodedata, os, httplib, socket, time
+
+# 로컬(127.0.0.1) Plex 서버와의 통신 시 Connection: close로 인한 Windows 소켓 리셋(Errno 10054) 방지 및 재시도 처리
+if 'KeepAliveHTTPConnection' not in str(httplib.HTTPConnection):
+  OrigHTTPConnection = httplib.HTTPConnection
+  OrigHTTPSConnection = httplib.HTTPSConnection
+
+  class KeepAliveHTTPConnection(OrigHTTPConnection):
+    def request(self, method, url, body=None, headers={}):
+      if self.host == '127.0.0.1':
+        headers = dict(headers)
+        headers['Connection'] = 'keep-alive'
+      self.last_method = method
+      self.last_url = url
+      self.last_body = body
+      self.last_headers = headers
+      return OrigHTTPConnection.request(self, method, url, body, headers)
+
+    def getresponse(self, buffering=False):
+      if self.host == '127.0.0.1':
+        for attempt in range(5):
+          try:
+            r = OrigHTTPConnection.getresponse(self, buffering=buffering)
+            if r.status >= 500 and attempt < 4:
+              self.close()
+              time.sleep(0.25)
+              self.connect()
+              OrigHTTPConnection.request(self, self.last_method, self.last_url, self.last_body, self.last_headers)
+              continue
+            return r
+          except socket.error:
+            if attempt == 4:
+              raise
+            self.close()
+            time.sleep(0.25)
+            self.connect()
+            OrigHTTPConnection.request(self, self.last_method, self.last_url, self.last_body, self.last_headers)
+      return OrigHTTPConnection.getresponse(self, buffering=buffering)
+
+  class KeepAliveHTTPSConnection(OrigHTTPSConnection, KeepAliveHTTPConnection):
+    pass
+
+  httplib.HTTPConnection = KeepAliveHTTPConnection
+  httplib.HTTPSConnection = KeepAliveHTTPSConnection
 
 DAUM_MOVIE_SRCH   = "https://search.daum.net/search?w=tot&q=%s&rtmaxcoll=EM1"
 DAUM_MOVIE_SGST   = "https://dapi.kakao.com/suggest-hub/v1/search.json?service=movie-v2&cate=movie&multiple=1&q=%s"
